@@ -63,7 +63,7 @@ public class OntologyHistoryAnalyzer {
             // Configure commit navigator to focus on the target ontology file
             var rootOntologyPath = ontologyFilePath.asString();
             var commitNavigator = CommitNavigatorBuilder.forWorkingDirectory(workingDirectory)
-                    .fileFilters("*.owl", "*.obo", "*.ofn", "*.ttl")
+                    .fileFilters("**/*.owl", "**/*.obo", "**/*.ofn", "**/*.ttl", "**/*.rdf", "**/*.owx")
                     .build();
 
             // Resolve the absolute path to the ontology file in the local clone
@@ -97,6 +97,7 @@ public class OntologyHistoryAnalyzer {
                 allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
             }
 
+            commitNavigator.reset();
             return ImmutableList.copyOf(allCommitChanges);
         } catch (Exception e) {
             throw new OntologyComparisonException("Failed to analyze ontology commit history", e);
