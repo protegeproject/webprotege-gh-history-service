@@ -1,4 +1,4 @@
-FROM openjdk:17
+FROM openjdk:21
 LABEL maintainer="protege.stanford.edu"
 
 ARG JAR_FILE
