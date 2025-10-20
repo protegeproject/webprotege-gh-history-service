@@ -13,14 +13,12 @@ import edu.stanford.protege.webprotege.common.ProjectId;
  * @param operationId The correlated operation ID for tracking the operation
  * @param eventId The correlation event ID for tracking the operation
  * @param branchCoordinates The coordinates of the successfully cloned repository branch
- * @param repository The cloned GitHub repository
  */
 public record CloneRepositorySucceededEvent(
         ProjectId projectId,
         CreateProjectHistoryOperationId operationId,
         EventId eventId,
-        BranchCoordinates branchCoordinates,
-        GitHubRepository repository)
+        BranchCoordinates branchCoordinates)
         implements ProjectEvent {
 
     private static final String CHANNEL = "webprotege.events.github.CloneRepositorySucceeded";
