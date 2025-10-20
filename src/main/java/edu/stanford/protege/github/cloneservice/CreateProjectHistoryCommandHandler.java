@@ -143,7 +143,7 @@ public class CreateProjectHistoryCommandHandler
                                 projectId,
                                 operationId,
                                 branchCoordinates.repositoryUrl());
-                        var workingDirectory = getLocalWorkingDirectory(userId, projectId);
+                        var workingDirectory = getLocalWorkingDirectory(projectId, branchCoordinates);
                         return cloneGitHubRepository(branchCoordinates, workingDirectory);
                     } catch (Exception e) {
                         logger.error(
@@ -207,9 +207,10 @@ public class CreateProjectHistoryCommandHandler
                 projectHistoryCreationExecutor);
     }
 
-    private Path getLocalWorkingDirectory(UserId userId, ProjectId projectId) {
+    private Path getLocalWorkingDirectory(ProjectId projectId, BranchCoordinates branchCoordinates) {
         var tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
-        return tempDir.resolve("github-repos" + File.separator + userId.value() + File.separator + projectId.value());
+        var subDir = Path.of("github-repos", projectId.value(), branchCoordinates.ownerName(), branchCoordinates.repositoryName());
+        return tempDir.resolve(subDir);
     }
 
     private GitHubRepository cloneGitHubRepository(BranchCoordinates branchCoordinates, Path workingDirectory)
@@ -239,7 +240,7 @@ public class CreateProjectHistoryCommandHandler
             BranchCoordinates branchCoordinates,
             GitHubRepository repository) {
         eventDispatcher.dispatchEvent(
-                new CloneRepositorySucceededEvent(projectId, operationId, eventId, branchCoordinates, repository));
+                new CloneRepositorySucceededEvent(projectId, operationId, eventId, branchCoordinates));
     }
 
     private void fireGenerateFailed(

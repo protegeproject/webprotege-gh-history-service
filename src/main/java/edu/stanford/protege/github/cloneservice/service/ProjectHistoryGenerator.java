@@ -58,7 +58,7 @@ public class ProjectHistoryGenerator {
             BranchCoordinates branchCoordinates,
             RelativeFilePath rootOntologyPath) {
         try {
-            var localCloneDirectory = getLocalCloneDirectory(userId, projectId);
+            var localCloneDirectory = getLocalCloneDirectory(projectId, branchCoordinates);
             var repository = getGitHubRepository(branchCoordinates, localCloneDirectory, rootOntologyPath);
             var projectHistory = ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository);
             var projectHistoryLocation = projectHistoryStorer.storeProjectHistory(projectId, projectHistory);
@@ -69,9 +69,10 @@ public class ProjectHistoryGenerator {
         }
     }
 
-    private Path getLocalCloneDirectory(UserId userId, ProjectId projectId) throws IOException {
+    private Path getLocalCloneDirectory(ProjectId projectId, BranchCoordinates branchCoordinates) throws IOException {
         var tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
-        return tempDir.resolve("github-repos" + File.separator + userId.value() + File.separator + projectId.value());
+        var subDir = Path.of("github-repos", projectId.value(), branchCoordinates.ownerName(), branchCoordinates.repositoryName());
+        return tempDir.resolve(subDir);
     }
 
     private GitHubRepository getGitHubRepository(
