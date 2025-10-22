@@ -118,27 +118,19 @@ public class OntologyHistoryAnalyzer {
                     allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
 
                     // Finish the previously-started commit
-                    if(childCommitMetadata != null) {
-                        progressMonitor.processingFinished(childCommitMetadata);
-                    }
+                    recordProgress(progressMonitor, childCommitMetadata);
 
                     // Advance the window: parent becomes the new child
                     childCommitOntologies = parentCommitOntologies;
                     childCommitMetadata = parentCommitMetadata;
-                    if(childCommitMetadata != null) {
-                        progressMonitor.processingStarted(childCommitMetadata);
-                    }
+                    recordProgress(progressMonitor, childCommitMetadata);
                 } else {
                     // Ensure the in-flight commit gets a finished signal even if we skip differencing
-                    if(childCommitMetadata != null) {
-                        progressMonitor.processingFinished(childCommitMetadata);
-                    }
+                    recordProgress(progressMonitor, childCommitMetadata);
                     // Advance the window even if one side failed to load
                     childCommitOntologies = parentCommitOntologies;
                     childCommitMetadata = parentCommitMetadata;
-                    if(childCommitMetadata != null) {
-                        progressMonitor.processingStarted(childCommitMetadata);
-                    }
+                    recordProgress(progressMonitor, childCommitMetadata);
                 }
 
                 var elapsedTime = Duration.between(startTime, Instant.now());
@@ -158,9 +150,7 @@ public class OntologyHistoryAnalyzer {
                 allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
             }
             // Finish the last started commit, if any
-            if(childCommitMetadata != null) {
-                progressMonitor.processingFinished(childCommitMetadata);
-            }
+            recordProgress(progressMonitor, childCommitMetadata);
 
             return ImmutableList.copyOf(allCommitChanges);
         } catch (Exception e) {
@@ -169,6 +159,12 @@ public class OntologyHistoryAnalyzer {
         } finally {
             // Ensure repo state is restored even on failure (best-effort)
             safeResetWorkingDirectory(workingDirectory);
+        }
+    }
+
+    private void recordProgress(@NotNull OntologyHistoryAnalyzerProgressMonitor progressMonitor, CommitMetadata childCommitMetadata) {
+        if(childCommitMetadata != null) {
+            progressMonitor.processingFinished(childCommitMetadata);
         }
     }
 
