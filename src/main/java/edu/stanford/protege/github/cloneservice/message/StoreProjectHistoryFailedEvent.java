@@ -1,7 +1,6 @@
-package edu.stanford.protege.github.cloneservice.event;
+package edu.stanford.protege.github.cloneservice.message;
 
-import edu.stanford.protege.commitnavigator.model.RepositoryCoordinates;
-import edu.stanford.protege.github.cloneservice.service.CreateProjectHistoryFromGitHubRepoOperationId;
+import edu.stanford.protege.commitnavigator.model.BranchCoordinates;
 import edu.stanford.protege.webprotege.common.EventId;
 import edu.stanford.protege.webprotege.common.ProjectEvent;
 import edu.stanford.protege.webprotege.common.ProjectId;
@@ -12,18 +11,18 @@ import edu.stanford.protege.webprotege.common.ProjectId;
  * @param projectId The project for which the history import failed
  * @param operationId The correlated operation ID for tracking the operation
  * @param eventId The correlation event ID for tracking the operation
- * @param repositoryCoordinates The coordinates of the repository from which import failed
+ * @param branchCoordinates The coordinates of the repository branch from which import failed
  * @param errorMessage The error message describing the failure
  */
-public record GitHubProjectHistoryStoreFailedEvent(
+public record StoreProjectHistoryFailedEvent(
         ProjectId projectId,
-        CreateProjectHistoryFromGitHubRepoOperationId operationId,
+        CreateProjectHistoryOperationId operationId,
         EventId eventId,
-        RepositoryCoordinates repositoryCoordinates,
+        BranchCoordinates branchCoordinates,
         String errorMessage)
         implements ProjectEvent {
 
-    private static final String CHANNEL = "webprotege.events.projects.GitHubProjectHistoryStoreFailed";
+    private static final String CHANNEL = "webprotege.events.github.StoreProjectHistoryFailed";
 
     @Override
     public String getChannel() {

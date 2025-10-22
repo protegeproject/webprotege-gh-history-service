@@ -1,13 +1,12 @@
-package edu.stanford.protege.github.cloneservice.event;
+package edu.stanford.protege.github.cloneservice.message;
 
-import edu.stanford.protege.github.cloneservice.service.CreateProjectHistoryFromGitHubRepoOperationId;
 import edu.stanford.protege.webprotege.common.ProjectEvent;
 import javax.annotation.Nonnull;
 
 /**
  * Base interface for all events related to creating project history from a GitHub repository.
  */
-public interface CreateProjectHistoryFromGitHubRepoEvent extends ProjectEvent {
+public interface CreateProjectHistoryEvent extends ProjectEvent {
 
     /**
      * Returns the unique operation ID associated with this GitHub repository clone operation.
@@ -18,5 +17,5 @@ public interface CreateProjectHistoryFromGitHubRepoEvent extends ProjectEvent {
      * @return the operation ID for this GitHub repository clone operation, never null
      */
     @Nonnull
-    CreateProjectHistoryFromGitHubRepoOperationId operationId();
+    CreateProjectHistoryOperationId operationId();
 }

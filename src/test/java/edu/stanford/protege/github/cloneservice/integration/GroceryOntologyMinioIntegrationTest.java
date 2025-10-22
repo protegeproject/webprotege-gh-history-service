@@ -2,9 +2,12 @@ package edu.stanford.protege.github.cloneservice.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import edu.stanford.protege.commitnavigator.model.RepositoryCoordinates;
+import edu.stanford.protege.commitnavigator.model.BranchCoordinates;
+import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import edu.stanford.protege.github.cloneservice.service.ProjectHistoryGenerator;
+import edu.stanford.protege.github.cloneservice.utils.NullProgressMonitor;
+import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzerProgressMonitor;
 import edu.stanford.protege.webprotege.common.BlobLocation;
 import edu.stanford.protege.webprotege.common.ProjectId;
 import edu.stanford.protege.webprotege.common.UserId;
@@ -33,6 +36,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.N;
 
 /**
  * Integration test that tests the complete workflow from GitHub repository analysis to MinIO
@@ -97,7 +101,7 @@ class GroceryOntologyMinioIntegrationTest {
         logger.info("Starting MinIO integration test for grocery ontology");
         var userId = UserId.valueOf("integration-test-user");
         var projectId = ProjectId.generate();
-        var repositoryCoordinates = RepositoryCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
+        var branchCoordinates = BranchCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
 
         logger.info(
                 "Test configuration - User: {}, Project: {}, Repository: {}, Branch: {}, Target file: {}",
@@ -110,7 +114,7 @@ class GroceryOntologyMinioIntegrationTest {
         // Act
         logger.info("Generating and storing project history in MinIO");
         var blobLocation = projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                userId, projectId, repositoryCoordinates, ONTOLOGY_FILE_PATH);
+                userId, projectId, branchCoordinates, ONTOLOGY_FILE_PATH, new NullProgressMonitor());
 
         // Assert - Verify BlobLocation structure
         assertNotNull(blobLocation, "BlobLocation should not be null");
@@ -149,13 +153,13 @@ class GroceryOntologyMinioIntegrationTest {
         var userId = UserId.valueOf("multi-test-user");
         var projectId1 = ProjectId.generate();
         var projectId2 = ProjectId.generate();
-        var repositoryCoordinates = RepositoryCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
+        var branchCoordinates = BranchCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
 
         // Act
         var blobLocation1 = projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                userId, projectId1, repositoryCoordinates, ONTOLOGY_FILE_PATH);
+                userId, projectId1, branchCoordinates, ONTOLOGY_FILE_PATH, new NullProgressMonitor());
         var blobLocation2 = projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                userId, projectId2, repositoryCoordinates, ONTOLOGY_FILE_PATH);
+                userId, projectId2, branchCoordinates, ONTOLOGY_FILE_PATH, new NullProgressMonitor());
 
         // Assert
         assertNotEquals(
@@ -180,12 +184,12 @@ class GroceryOntologyMinioIntegrationTest {
         // Arrange
         var userId = UserId.valueOf("bucket-test-user");
         var projectId = ProjectId.generate();
-        var repositoryCoordinates = RepositoryCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
+        var branchCoordinates = BranchCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
 
         // Act & Assert
         assertDoesNotThrow(
                 () -> projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                        userId, projectId, repositoryCoordinates, ONTOLOGY_FILE_PATH),
+                        userId, projectId, branchCoordinates, ONTOLOGY_FILE_PATH, new NullProgressMonitor()),
                 "Should successfully store project history even if bucket needs to be created");
     }
 
@@ -196,11 +200,11 @@ class GroceryOntologyMinioIntegrationTest {
         logger.info("Starting test to unpack binary file and verify OntologyChange objects");
         var userId = UserId.valueOf("content-verification-user");
         var projectId = ProjectId.generate();
-        var repositoryCoordinates = RepositoryCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
+        var branchCoordinates = BranchCoordinates.createFromUrl(GROCERY_ONTOLOGY_URL, MASTER_BRANCH);
 
         // Act - Generate and store project history
         var blobLocation = projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                userId, projectId, repositoryCoordinates, ONTOLOGY_FILE_PATH);
+                userId, projectId, branchCoordinates, ONTOLOGY_FILE_PATH, new NullProgressMonitor());
 
         logger.info("Stored binary file at: {}", blobLocation.name());
 

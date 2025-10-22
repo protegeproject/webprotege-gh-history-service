@@ -61,7 +61,7 @@ class OntologyHistoryAnalyzerTest {
     @DisplayName("Should throw NullPointerException when ontologyFilePath is null")
     void throwExceptionWhenOntologyFilePathNull() {
         var exception = assertThrows(
-                NullPointerException.class, () -> historyAnalyzer.getCommitHistory(null, gitHubRepository));
+                NullPointerException.class, () -> historyAnalyzer.getCommitHistory(null, gitHubRepository, new NullProgressMonitor()));
 
         assertEquals("ontologyFilePath cannot be null", exception.getMessage());
     }
@@ -71,7 +71,7 @@ class OntologyHistoryAnalyzerTest {
     void throwExceptionWhenGitHubRepositoryNull() {
         var ontologyFile = new RelativeFilePath("ontology.owl");
         var exception =
-                assertThrows(NullPointerException.class, () -> historyAnalyzer.getCommitHistory(ontologyFile, null));
+                assertThrows(NullPointerException.class, () -> historyAnalyzer.getCommitHistory(ontologyFile, null, new NullProgressMonitor()));
 
         assertEquals("gitHubRepository cannot be null", exception.getMessage());
     }
@@ -90,7 +90,7 @@ class OntologyHistoryAnalyzerTest {
 
         var exception = assertThrows(
                 OntologyComparisonException.class,
-                () -> historyAnalyzer.getCommitHistory(ontologyFile, gitHubRepository));
+                () -> historyAnalyzer.getCommitHistory(ontologyFile, gitHubRepository, new NullProgressMonitor()));
 
         assertNotNull(exception.getMessage());
         assertTrue(exception.getMessage().contains("Failed to analyze ontology commit history"));
@@ -118,13 +118,13 @@ class OntologyHistoryAnalyzerTest {
     void validateGetCommitHistoryParametersUsingObjectsRequireNonNull() {
         // Test ontologyFilePath validation
         var exception1 = assertThrows(
-                NullPointerException.class, () -> historyAnalyzer.getCommitHistory(null, gitHubRepository));
+                NullPointerException.class, () -> historyAnalyzer.getCommitHistory(null, gitHubRepository, new NullProgressMonitor()));
         assertEquals("ontologyFilePath cannot be null", exception1.getMessage());
 
         // Test gitHubRepository validation
         var ontologyFile = new RelativeFilePath("test.owl");
         var exception2 =
-                assertThrows(NullPointerException.class, () -> historyAnalyzer.getCommitHistory(ontologyFile, null));
+                assertThrows(NullPointerException.class, () -> historyAnalyzer.getCommitHistory(ontologyFile, null, new NullProgressMonitor()));
         assertEquals("gitHubRepository cannot be null", exception2.getMessage());
     }
 }

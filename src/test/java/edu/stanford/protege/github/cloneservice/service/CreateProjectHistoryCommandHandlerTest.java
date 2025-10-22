@@ -3,7 +3,10 @@ package edu.stanford.protege.github.cloneservice.service;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import edu.stanford.protege.commitnavigator.model.RepositoryCoordinates;
+import edu.stanford.protege.commitnavigator.model.BranchCoordinates;
+import edu.stanford.protege.github.cloneservice.CreateProjectHistoryCommandHandler;
+import edu.stanford.protege.github.cloneservice.message.CreateProjectHistoryRequest;
+import edu.stanford.protege.github.cloneservice.message.CreateProjectHistoryResponse;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzer;
 import edu.stanford.protege.webprotege.common.BlobLocation;
@@ -20,12 +23,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 
-/** Unit tests for {@link CreateProjectHistoryFromGitHubRepoCommandHandler} */
+/** Unit tests for {@link CreateProjectHistoryCommandHandler} */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CreateProjectHistoryFromGitHubRepoCommandHandler Tests")
-class CreateProjectHistoryFromGitHubRepoCommandHandlerTest {
+class CreateProjectHistoryCommandHandlerTest {
 
-    private CreateProjectHistoryFromGitHubRepoCommandHandler commandHandler;
+    private CreateProjectHistoryCommandHandler commandHandler;
 
     @Mock
     private OntologyHistoryAnalyzer ontologyHistoryAnalyzer;
@@ -43,25 +46,24 @@ class CreateProjectHistoryFromGitHubRepoCommandHandlerTest {
     private ExecutionContext executionContext;
 
     @Mock
-    private RepositoryCoordinates repositoryCoordinates;
+    private BranchCoordinates branchCoordinates;
 
     private ProjectId testProjectId;
     private UserId testUserId;
     private BlobLocation testBlobLocation;
     private RelativeFilePath testTargetOntologyFile;
-    private CreateProjectHistoryFromGitHubRepoRequest testRequest;
+    private CreateProjectHistoryRequest testRequest;
 
     @BeforeEach
     void setUp() {
-        commandHandler = new CreateProjectHistoryFromGitHubRepoCommandHandler(
+        commandHandler = new CreateProjectHistoryCommandHandler(
                 ontologyHistoryAnalyzer, projectHistoryStorer, eventDispatcher, executor);
         testProjectId = ProjectId.valueOf("12345678-1234-1234-1234-123456789012");
         testUserId = UserId.valueOf("test-user");
         testBlobLocation = new BlobLocation("test-bucket", "test/path/document.json");
         testTargetOntologyFile = new RelativeFilePath("ontology.owl");
 
-        testRequest = new CreateProjectHistoryFromGitHubRepoRequest(
-                testProjectId, repositoryCoordinates, testTargetOntologyFile);
+        testRequest = new CreateProjectHistoryRequest(testProjectId, branchCoordinates, testTargetOntologyFile);
     }
 
     @Test
@@ -71,14 +73,13 @@ class CreateProjectHistoryFromGitHubRepoCommandHandlerTest {
         when(executionContext.userId()).thenReturn(testUserId);
 
         // Act
-        Mono<CreateProjectHistoryFromGitHubRepoResponse> result =
-                commandHandler.handleRequest(testRequest, executionContext);
+        Mono<CreateProjectHistoryResponse> result = commandHandler.handleRequest(testRequest, executionContext);
 
         // Assert
-        CreateProjectHistoryFromGitHubRepoResponse response = result.block();
+        CreateProjectHistoryResponse response = result.block();
         assertNotNull(response);
         assertEquals(testProjectId, response.projectId());
-        assertEquals(repositoryCoordinates, response.repositoryCoordinates());
+        assertEquals(branchCoordinates, response.branchCoordinates());
         assertNotNull(response.operationId(), "Event ID should be generated");
 
         // Verify the execution context was accessed
@@ -92,19 +93,18 @@ class CreateProjectHistoryFromGitHubRepoCommandHandlerTest {
         var specificProjectId = ProjectId.valueOf("87654321-4321-4321-4321-210987654321");
         var specificUserId = UserId.valueOf("specific-user");
         var specificTargetFile = new RelativeFilePath("specific-ontology.ttl");
-        var specificRequest = new CreateProjectHistoryFromGitHubRepoRequest(
-                specificProjectId, repositoryCoordinates, specificTargetFile);
+        var specificRequest = new CreateProjectHistoryRequest(specificProjectId, branchCoordinates, specificTargetFile);
 
         when(executionContext.userId()).thenReturn(specificUserId);
 
         // Act
-        CreateProjectHistoryFromGitHubRepoResponse response =
+        CreateProjectHistoryResponse response =
                 commandHandler.handleRequest(specificRequest, executionContext).block();
 
         // Assert - verify response contains the correct data from the request
         assertNotNull(response);
         assertEquals(specificProjectId, response.projectId());
-        assertEquals(repositoryCoordinates, response.repositoryCoordinates());
+        assertEquals(branchCoordinates, response.branchCoordinates());
         assertNotNull(response.operationId());
         verify(executionContext).userId();
     }
@@ -116,9 +116,9 @@ class CreateProjectHistoryFromGitHubRepoCommandHandlerTest {
         when(executionContext.userId()).thenReturn(testUserId);
 
         // Act - make two separate requests
-        CreateProjectHistoryFromGitHubRepoResponse response1 =
+        CreateProjectHistoryResponse response1 =
                 commandHandler.handleRequest(testRequest, executionContext).block();
-        CreateProjectHistoryFromGitHubRepoResponse response2 =
+        CreateProjectHistoryResponse response2 =
                 commandHandler.handleRequest(testRequest, executionContext).block();
 
         // Assert - event IDs should be different
@@ -129,6 +129,6 @@ class CreateProjectHistoryFromGitHubRepoCommandHandlerTest {
 
         // But project and repository data should be the same
         assertEquals(response1.projectId(), response2.projectId());
-        assertEquals(response1.repositoryCoordinates(), response2.repositoryCoordinates());
+        assertEquals(response1.branchCoordinates(), response2.branchCoordinates());
     }
 }

@@ -3,11 +3,12 @@ package edu.stanford.protege.github.cloneservice.service;
 import edu.stanford.protege.commitnavigator.GitHubRepository;
 import edu.stanford.protege.commitnavigator.GitHubRepositoryBuilderFactory;
 import edu.stanford.protege.commitnavigator.exceptions.GitHubNavigatorException;
-import edu.stanford.protege.commitnavigator.model.RepositoryCoordinates;
+import edu.stanford.protege.commitnavigator.model.BranchCoordinates;
 import edu.stanford.protege.github.cloneservice.exception.OntologyComparisonException;
 import edu.stanford.protege.github.cloneservice.exception.StorageException;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzer;
+import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzerProgressMonitor;
 import edu.stanford.protege.webprotege.common.BlobLocation;
 import edu.stanford.protege.webprotege.common.ProjectId;
 import edu.stanford.protege.webprotege.common.UserId;
@@ -26,6 +27,7 @@ public class ProjectHistoryGenerator {
     private final Logger logger = LoggerFactory.getLogger(ProjectHistoryGenerator.class);
 
     private final OntologyHistoryAnalyzer ontologyHistoryAnalyzer;
+
     private final ProjectHistoryStorer projectHistoryStorer;
 
     public ProjectHistoryGenerator(
@@ -45,8 +47,8 @@ public class ProjectHistoryGenerator {
      *
      * @param userId the unique identifier of the WebProtege user
      * @param projectId the unique identifier of the ontology project in WebProtege
-     * @param repositoryCoordinates the GitHub repository specification
-     * @param targetOntologyFile the ontology file in the repository to generate the history for
+     * @param branchCoordinates the GitHub repository specification
+     * @param rootOntologyPath the ontology file in the repository to generate the history for
      * @return a {@link BlobLocation} indicating where the project history document has been stored
      * @throws StorageException if an error occurs during repository access, history analysis, or
      *     storage operations. This may include network issues, authentication failures, file access
@@ -55,12 +57,13 @@ public class ProjectHistoryGenerator {
     public BlobLocation writeProjectHistoryFromGitHubRepo(
             UserId userId,
             ProjectId projectId,
-            RepositoryCoordinates repositoryCoordinates,
-            RelativeFilePath targetOntologyFile) {
+            BranchCoordinates branchCoordinates,
+            RelativeFilePath rootOntologyPath,
+            OntologyHistoryAnalyzerProgressMonitor progressMonitor) {
         try {
-            var localCloneDirectory = getLocalCloneDirectory(userId, projectId);
-            var repository = getGitHubRepository(repositoryCoordinates, localCloneDirectory, targetOntologyFile);
-            var projectHistory = ontologyHistoryAnalyzer.getCommitHistory(targetOntologyFile, repository);
+            var localCloneDirectory = getLocalCloneDirectory(projectId, branchCoordinates);
+            var repository = getGitHubRepository(branchCoordinates, localCloneDirectory, rootOntologyPath);
+            var projectHistory = ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository, progressMonitor);
             var projectHistoryLocation = projectHistoryStorer.storeProjectHistory(projectId, projectHistory);
             logger.info("Stored project history document at: {}", projectHistoryLocation);
             return projectHistoryLocation;
@@ -69,15 +72,16 @@ public class ProjectHistoryGenerator {
         }
     }
 
-    private Path getLocalCloneDirectory(UserId userId, ProjectId projectId) throws IOException {
+    private Path getLocalCloneDirectory(ProjectId projectId, BranchCoordinates branchCoordinates) throws IOException {
         var tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
-        return tempDir.resolve("github-repos" + File.separator + userId.value() + File.separator + projectId.value());
+        var subDir = Path.of("github-repos", projectId.value(), branchCoordinates.ownerName(), branchCoordinates.repositoryName());
+        return tempDir.resolve(subDir);
     }
 
     private GitHubRepository getGitHubRepository(
-            RepositoryCoordinates repositoryCoordinates, Path localCloneDirectory, RelativeFilePath targetOntologyFile)
+            BranchCoordinates branchCoordinates, Path localCloneDirectory, RelativeFilePath rootOntologyPath)
             throws GitHubNavigatorException {
-        var repository = GitHubRepositoryBuilderFactory.create(repositoryCoordinates)
+        var repository = GitHubRepositoryBuilderFactory.create(branchCoordinates)
                 .localWorkingDirectory(localCloneDirectory)
                 .build();
         repository.initialize();

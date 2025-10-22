@@ -9,16 +9,23 @@ import edu.stanford.protege.github.cloneservice.exception.OntologyComparisonExce
 import edu.stanford.protege.github.cloneservice.model.AxiomChange;
 import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import javax.annotation.Nonnull;
+import org.jetbrains.annotations.NotNull;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import javax.annotation.Nonnull;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 /** Main service for analyzing ontology history across Git commits */
 @Component
@@ -27,12 +34,29 @@ public class OntologyHistoryAnalyzer {
     private static final Logger logger = LoggerFactory.getLogger(OntologyHistoryAnalyzer.class);
 
     private final OntologyLoader ontologyLoader;
+
     private final OntologyDifferenceCalculator differenceCalculator;
 
-    public OntologyHistoryAnalyzer(OntologyLoader ontologyLoader, OntologyDifferenceCalculator differenceCalculator) {
+    @Value("${webprotege.github.max-analysis-time:2m}")
+    private Duration maxAnalysisDuration;
+
+    public OntologyHistoryAnalyzer(OntologyLoader ontologyLoader,
+                                   OntologyDifferenceCalculator differenceCalculator) {
         this.ontologyLoader = Objects.requireNonNull(ontologyLoader, "OntologyLoader cannot be null");
         this.differenceCalculator =
                 Objects.requireNonNull(differenceCalculator, "OntologyDifferenceCalculator cannot be null");
+    }
+
+    private static @NotNull List<String> getChangedFiles(@NotNull CommitMetadata commitMetadata) {
+        return commitMetadata.getChangedFiles()
+                .stream()
+                // Not a directory
+                .filter(file -> file.contains("." ))
+                // Sometimes tools change and these are not relevant to us
+                .filter(file -> !file.endsWith(".jar" )
+                                && !file.endsWith(".py" ))
+                .distinct()
+                .toList();
     }
 
     /**
@@ -45,38 +69,46 @@ public class OntologyHistoryAnalyzer {
      */
     @Nonnull
     public List<OntologyCommitChange> getCommitHistory(
-            @Nonnull RelativeFilePath ontologyFilePath, @Nonnull GitHubRepository gitHubRepository)
+            @Nonnull RelativeFilePath ontologyFilePath,
+            @Nonnull GitHubRepository gitHubRepository,
+            @Nonnull OntologyHistoryAnalyzerProgressMonitor progressMonitor)
             throws OntologyComparisonException {
 
         Objects.requireNonNull(ontologyFilePath, "ontologyFilePath cannot be null");
         Objects.requireNonNull(gitHubRepository, "gitHubRepository cannot be null");
 
-        logger.info("Starting ontology commit history analysis for ontology file: {}", ontologyFilePath);
+        logger.info("Starting ontology commit history analysis for ontology file: {}.  Max analysis time: {}", ontologyFilePath, maxAnalysisDuration);
 
         var repositoryUrl = gitHubRepository.getConfig().getRepositoryUrl();
         var allCommitChanges = Lists.<OntologyCommitChange>newArrayList();
 
+        Path workingDirectory = null;
         try {
             // Get the working directory from the repository
-            var workingDirectory = gitHubRepository.getWorkingDirectory();
+            workingDirectory = gitHubRepository.getWorkingDirectory();
 
             // Configure commit navigator to focus on the target ontology file
-            var targetOntologyFile = ontologyFilePath.asString();
+            var rootOntologyPath = ontologyFilePath.asString();
             var commitNavigator = CommitNavigatorBuilder.forWorkingDirectory(workingDirectory)
-                    .fileFilters("*.owl", "*.obo", "*.ofn", "*.ttl")
+                    .fileFilters("**/*.owl", "**/*.obo", "**/*.ofn", "**/*.ttl", "**/*.rdf", "**/*.owx")
                     .build();
 
+            commitNavigator.reset();
+
+            var startTime = Instant.now();
             // Resolve the absolute path to the ontology file in the local clone
-            var ontologyFile = commitNavigator.resolveFilePath(targetOntologyFile);
+            var ontologyFile = commitNavigator.resolveFilePath(rootOntologyPath);
 
             // Get the current commit metadata
             var childCommitMetadata = commitNavigator.getCurrentCommit();
+            if(childCommitMetadata != null) {
+                progressMonitor.processingStarted(childCommitMetadata);
+            }
             var childCommitOntologies = loadOntologiesWithErrorHandling(ontologyFile, childCommitMetadata);
 
             while (commitNavigator.hasParent()) {
                 // Get the parent commit metadata
                 var parentCommitMetadata = commitNavigator.checkoutParent();
-
                 // Load ontologies at the previous commit
                 var parentCommitOntologies = loadOntologiesWithErrorHandling(ontologyFile, parentCommitMetadata);
 
@@ -85,9 +117,38 @@ public class OntologyHistoryAnalyzer {
                             childCommitOntologies.get(), parentCommitOntologies.get());
                     allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
 
-                    // Swap the metadata and ontologies from parent commit to be the child commit
+                    // Finish the previously-started commit
+                    if(childCommitMetadata != null) {
+                        progressMonitor.processingFinished(childCommitMetadata);
+                    }
+
+                    // Advance the window: parent becomes the new child
                     childCommitOntologies = parentCommitOntologies;
                     childCommitMetadata = parentCommitMetadata;
+                    if(childCommitMetadata != null) {
+                        progressMonitor.processingStarted(childCommitMetadata);
+                    }
+                } else {
+                    // Ensure the in-flight commit gets a finished signal even if we skip differencing
+                    if(childCommitMetadata != null) {
+                        progressMonitor.processingFinished(childCommitMetadata);
+                    }
+                    // Advance the window even if one side failed to load
+                    childCommitOntologies = parentCommitOntologies;
+                    childCommitMetadata = parentCommitMetadata;
+                    if(childCommitMetadata != null) {
+                        progressMonitor.processingStarted(childCommitMetadata);
+                    }
+                }
+
+                var elapsedTime = Duration.between(startTime, Instant.now());
+                if(elapsedTime.getSeconds() > maxAnalysisDuration.getSeconds()) {
+                    logger.info(
+                            "Spent longer than {} minutes analyzing history at commit {}. Finishing." ,
+                            maxAnalysisDuration.toMinutes(),
+                            childCommitMetadata != null ? childCommitMetadata.commitHash() : "<unknown>"
+                    );
+                    break;
                 }
             }
 
@@ -96,39 +157,59 @@ public class OntologyHistoryAnalyzer {
                 var axiomChanges = calculateInitialOntologyChanges(childCommitOntologies.get());
                 allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
             }
+            // Finish the last started commit, if any
+            if(childCommitMetadata != null) {
+                progressMonitor.processingFinished(childCommitMetadata);
+            }
 
             return ImmutableList.copyOf(allCommitChanges);
         } catch (Exception e) {
+            logger.error("An error occurred when analyzing the commit history", e);
             throw new OntologyComparisonException("Failed to analyze ontology commit history", e);
+        } finally {
+            // Ensure repo state is restored even on failure (best-effort)
+            safeResetWorkingDirectory(workingDirectory);
+        }
+    }
+
+    private static void safeResetWorkingDirectory(Path workingDirectory) {
+        try {
+            if(workingDirectory != null) {
+                CommitNavigatorBuilder.forWorkingDirectory(workingDirectory).build().reset();
+            }
+        } catch(Exception e) {
+            // best effort
+            logger.warn("Working directory could not be reset", e);
         }
     }
 
     /**
-     * Loads ontologies with centralized error handling and logging
+     * Loads ontologies with centralized error handling and logging.
      *
-     * @param rootOntology the root ontology file to load
+     * @param rootOntology  the root ontology file to load
      * @param commitMetadata metadata of the current commit for logging
-     * @return loaded ontologies or null if loading failed
+     * @return Optional of loaded ontologies; empty if loading failed
      */
     private Optional<List<OWLOntology>> loadOntologiesWithErrorHandling(
             @Nonnull Path rootOntology, @Nonnull CommitMetadata commitMetadata) {
         try {
-            if (rootOntology.endsWith(".obo") || rootOntology.endsWith(".ofn")) {
-                var changedFiles = commitMetadata.getChangedFiles();
-                if (changedFiles.size() == 1) {
-                    var changedFile = changedFiles.get(0);
-                    if (rootOntology.endsWith(changedFile)) {
-                        var ontologies = ontologyLoader.loadOntologyWithoutImports(rootOntology);
-                        return Optional.of(ontologies);
-                    }
+            var changedFiles = getChangedFiles(commitMetadata);
+            logger.info("Extracted changed files from commit {}: {}" , commitMetadata.commitHash(), changedFiles);
+
+            if(changedFiles.size() == 1) {
+                var changedFile = changedFiles.get(0);
+                if(rootOntology.endsWith(Path.of(changedFile))) {
+                    logger.info("Loading ontology without imports: {}" , changedFile);
+                    var ontologies = ontologyLoader.loadOntologyWithoutImports(rootOntology);
+                    return Optional.of(ontologies);
                 }
             }
             // Fallback call to load the root ontology along with its imports
             var ontologies = ontologyLoader.loadOntologyWithImports(rootOntology);
             return Optional.of(ontologies);
         } catch (Exception e) {
-            logger.info(
-                    "Skipping commit {} due to ontology load error: {}", commitMetadata.commitHash(), e.getMessage());
+            logger.warn("Failed to load ontology for commit {} at {}: {}" ,
+                    commitMetadata.commitHash(), rootOntology, e.getMessage(), e);
             return Optional.empty();
         }
     }
@@ -136,7 +217,7 @@ public class OntologyHistoryAnalyzer {
     /**
      * Calculates axiom changes between current and previous commit ontologies
      *
-     * @param childCommitOntologies ontologies from the child commit
+     * @param childCommitOntologies  ontologies from the child commit
      * @param parentCommitOntologies ontologies from the parent commit
      * @return list of axiom changes between commits
      */
@@ -193,9 +274,8 @@ public class OntologyHistoryAnalyzer {
      * Processes an ontology from a child commit by finding first its match from the parent commit and
      * then calculating changes. If no match is found, compares it to an empty ontology.
      *
-     * @param childCommitOntology the ontology to process from a child commit.
-     * @param parentCommitOntologies list of ontologies to match against, coming from the parent
-     *     commit.
+     * @param childCommitOntology     the ontology to process from a child commit.
+     * @param parentCommitOntologies  list of ontologies to match against, coming from the parent commit.
      * @return processing result containing axiom changes and ontology ID
      */
     @Nonnull
@@ -219,7 +299,7 @@ public class OntologyHistoryAnalyzer {
     /**
      * Finds matching ontology in the given ontologies list
      *
-     * @param targetOntology the ontology to find a match for
+     * @param targetOntology    the ontology to find a match for
      * @param ontologiesToSearch list of ontologies to search in
      * @return Optional containing the matching ontology, or empty if not found
      */
