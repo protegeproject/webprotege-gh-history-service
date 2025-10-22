@@ -8,7 +8,9 @@ import edu.stanford.protege.commitnavigator.GitHubRepository;
 import edu.stanford.protege.commitnavigator.model.BranchCoordinates;
 import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
+import edu.stanford.protege.github.cloneservice.utils.NullProgressMonitor;
 import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzer;
+import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzerProgressMonitor;
 import edu.stanford.protege.webprotege.common.BlobLocation;
 import edu.stanford.protege.webprotege.common.ProjectId;
 import edu.stanford.protege.webprotege.common.UserId;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.N;
 
 /** Unit tests for {@link ProjectHistoryGenerator} */
 @ExtendWith(MockitoExtension.class)
@@ -71,7 +74,7 @@ class ProjectHistoryGeneratorTest {
         var rootOntologyPath = new RelativeFilePath("test.owl");
         var projectHistory = List.of(commitChange1, commitChange2);
 
-        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class)))
+        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class), any(OntologyHistoryAnalyzerProgressMonitor.class)))
                 .thenReturn(projectHistory);
         when(projectHistoryStorer.storeProjectHistory(eq(testProjectId), eq(projectHistory)))
                 .thenReturn(testBlobLocation);
@@ -90,12 +93,12 @@ class ProjectHistoryGeneratorTest {
 
             // Act
             var result = projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                    testUserId, testProjectId, branchCoordinates, rootOntologyPath);
+                    testUserId, testProjectId, branchCoordinates, rootOntologyPath, any(OntologyHistoryAnalyzerProgressMonitor.class));
 
             // Assert
             assertEquals(testBlobLocation, result);
             verify(gitHubRepository).initialize();
-            verify(ontologyHistoryAnalyzer).getCommitHistory(rootOntologyPath, gitHubRepository);
+            verify(ontologyHistoryAnalyzer).getCommitHistory(rootOntologyPath, gitHubRepository, any(OntologyHistoryAnalyzerProgressMonitor.class));
             verify(projectHistoryStorer).storeProjectHistory(eq(testProjectId), eq(projectHistory));
         }
     }
@@ -107,7 +110,7 @@ class ProjectHistoryGeneratorTest {
         var rootOntologyPath = new RelativeFilePath("test.owl");
         var expectedException = new RuntimeException("Analysis failed");
 
-        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class)))
+        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class), any(OntologyHistoryAnalyzerProgressMonitor.class)))
                 .thenThrow(expectedException);
 
         try (MockedStatic<edu.stanford.protege.commitnavigator.GitHubRepositoryBuilderFactory> mockedFactory =
@@ -126,7 +129,7 @@ class ProjectHistoryGeneratorTest {
             var exception = assertThrows(
                     Exception.class,
                     () -> projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                            testUserId, testProjectId, branchCoordinates, rootOntologyPath));
+                            testUserId, testProjectId, branchCoordinates, rootOntologyPath, new NullProgressMonitor()));
 
             assertEquals(expectedException, exception);
             verify(projectHistoryStorer, never()).storeProjectHistory(any(), any());
@@ -141,7 +144,7 @@ class ProjectHistoryGeneratorTest {
         var projectHistory = List.of(commitChange1);
         var expectedException = new RuntimeException("Storage failed");
 
-        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class)))
+        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class), any(OntologyHistoryAnalyzerProgressMonitor.class)))
                 .thenReturn(projectHistory);
         when(projectHistoryStorer.storeProjectHistory(eq(testProjectId), eq(projectHistory)))
                 .thenThrow(expectedException);
@@ -162,7 +165,7 @@ class ProjectHistoryGeneratorTest {
             var exception = assertThrows(
                     Exception.class,
                     () -> projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                            testUserId, testProjectId, branchCoordinates, rootOntologyPath));
+                            testUserId, testProjectId, branchCoordinates, rootOntologyPath, new NullProgressMonitor()));
 
             assertEquals(expectedException, exception);
         }
@@ -175,7 +178,7 @@ class ProjectHistoryGeneratorTest {
         var rootOntologyPath = new RelativeFilePath("test.owl");
         var projectHistory = List.of(commitChange1);
 
-        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class)))
+        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class), any(OntologyHistoryAnalyzerProgressMonitor.class)))
                 .thenReturn(projectHistory);
         when(projectHistoryStorer.storeProjectHistory(eq(testProjectId), eq(projectHistory)))
                 .thenReturn(testBlobLocation);
@@ -194,7 +197,7 @@ class ProjectHistoryGeneratorTest {
 
             // Act
             projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                    testUserId, testProjectId, branchCoordinates, rootOntologyPath);
+                    testUserId, testProjectId, branchCoordinates, rootOntologyPath, new NullProgressMonitor());
 
             // Assert
             verify(mockBuilder).build();
@@ -208,7 +211,7 @@ class ProjectHistoryGeneratorTest {
         var rootOntologyPath = new RelativeFilePath("test.owl");
         var projectHistory = List.of(commitChange1);
 
-        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class)))
+        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class), any(OntologyHistoryAnalyzerProgressMonitor.class)))
                 .thenReturn(projectHistory);
         when(projectHistoryStorer.storeProjectHistory(eq(testProjectId), eq(projectHistory)))
                 .thenReturn(testBlobLocation);
@@ -227,12 +230,12 @@ class ProjectHistoryGeneratorTest {
 
             // Act
             projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                    testUserId, testProjectId, branchCoordinates, rootOntologyPath);
+                    testUserId, testProjectId, branchCoordinates, rootOntologyPath, new NullProgressMonitor());
 
             // Assert
             var inOrder = inOrder(gitHubRepository, ontologyHistoryAnalyzer);
             inOrder.verify(gitHubRepository).initialize();
-            inOrder.verify(ontologyHistoryAnalyzer).getCommitHistory(rootOntologyPath, gitHubRepository);
+            inOrder.verify(ontologyHistoryAnalyzer).getCommitHistory(rootOntologyPath, gitHubRepository, new NullProgressMonitor());
         }
     }
 
@@ -243,7 +246,7 @@ class ProjectHistoryGeneratorTest {
         var rootOntologyPath = new RelativeFilePath("empty.owl");
         var emptyProjectHistory = List.<OntologyCommitChange>of();
 
-        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class)))
+        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class), any(OntologyHistoryAnalyzerProgressMonitor.class)))
                 .thenReturn(emptyProjectHistory);
         when(projectHistoryStorer.storeProjectHistory(eq(testProjectId), eq(emptyProjectHistory)))
                 .thenReturn(testBlobLocation);
@@ -262,7 +265,7 @@ class ProjectHistoryGeneratorTest {
 
             // Act
             var result = projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                    testUserId, testProjectId, branchCoordinates, rootOntologyPath);
+                    testUserId, testProjectId, branchCoordinates, rootOntologyPath, new NullProgressMonitor());
 
             // Assert
             assertEquals(testBlobLocation, result);
@@ -277,7 +280,7 @@ class ProjectHistoryGeneratorTest {
         var rootOntologyPath = new RelativeFilePath("specific.owl");
         var projectHistory = List.of(commitChange1, commitChange2);
 
-        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class)))
+        when(ontologyHistoryAnalyzer.getCommitHistory(eq(rootOntologyPath), any(GitHubRepository.class), any(OntologyHistoryAnalyzerProgressMonitor.class)))
                 .thenReturn(projectHistory);
         when(projectHistoryStorer.storeProjectHistory(eq(testProjectId), eq(projectHistory)))
                 .thenReturn(testBlobLocation);
@@ -296,10 +299,10 @@ class ProjectHistoryGeneratorTest {
 
             // Act
             projectHistoryGenerator.writeProjectHistoryFromGitHubRepo(
-                    testUserId, testProjectId, branchCoordinates, rootOntologyPath);
+                    testUserId, testProjectId, branchCoordinates, rootOntologyPath, new NullProgressMonitor());
 
             // Assert
-            verify(ontologyHistoryAnalyzer).getCommitHistory(rootOntologyPath, gitHubRepository);
+            verify(ontologyHistoryAnalyzer).getCommitHistory(rootOntologyPath, gitHubRepository, new NullProgressMonitor());
             verify(projectHistoryStorer).storeProjectHistory(eq(testProjectId), eq(projectHistory));
         }
     }

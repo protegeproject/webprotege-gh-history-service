@@ -8,10 +8,7 @@ import edu.stanford.protege.commitnavigator.model.BranchCoordinates;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import edu.stanford.protege.github.cloneservice.service.ChangeCommitToRevisionConverter;
 import edu.stanford.protege.github.cloneservice.service.ProjectHistoryConverter;
-import edu.stanford.protege.github.cloneservice.utils.OntologyDifferenceCalculator;
-import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzer;
-import edu.stanford.protege.github.cloneservice.utils.OntologyLoader;
-import edu.stanford.protege.github.cloneservice.utils.OntologyManagerProvider;
+import edu.stanford.protege.github.cloneservice.utils.*;
 import edu.stanford.protege.webprotege.common.UserId;
 import edu.stanford.protege.webprotege.revision.Revision;
 import java.io.IOException;
@@ -25,6 +22,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.N;
 
 /**
  * Integration test that coordinates with the grocery-ontology GitHub repository, gets the project
@@ -89,7 +87,7 @@ class GroceryOntologyIntegrationTest {
 
         // Act
         logger.info("Getting commit history from repository");
-        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository);
+        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor());
 
         logger.info("Converting {} commit changes to revisions", commitHistory.size());
         var revisions = projectHistoryConverter.convertProjectHistoryToRevisions(commitHistory);
@@ -176,7 +174,7 @@ class GroceryOntologyIntegrationTest {
         var gitHubRepository = createGitHubRepository(cloneDirectory);
 
         // Act
-        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository);
+        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor());
 
         // Assert - Validate expected repository structure with updated expectations
         assertNotNull(commitHistory, "Commit history should not be null");
@@ -208,7 +206,7 @@ class GroceryOntologyIntegrationTest {
         var gitHubRepository = createGitHubRepository(cloneDirectory);
 
         // Act
-        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository);
+        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor());
         var revisions = projectHistoryConverter.convertProjectHistoryToRevisions(commitHistory);
 
         // Assert - Validate ontology change conversion with updated expectations

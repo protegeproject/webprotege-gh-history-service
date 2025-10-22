@@ -4,12 +4,14 @@ import edu.stanford.protege.commitnavigator.GitHubRepository;
 import edu.stanford.protege.commitnavigator.GitHubRepositoryBuilderFactory;
 import edu.stanford.protege.commitnavigator.exceptions.GitHubNavigatorException;
 import edu.stanford.protege.commitnavigator.model.BranchCoordinates;
+import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 import edu.stanford.protege.github.cloneservice.exception.OntologyComparisonException;
 import edu.stanford.protege.github.cloneservice.message.*;
 import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import edu.stanford.protege.github.cloneservice.service.ProjectHistoryStorer;
 import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzer;
+import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzerProgressMonitor;
 import edu.stanford.protege.webprotege.common.*;
 import edu.stanford.protege.webprotege.ipc.CommandHandler;
 import edu.stanford.protege.webprotege.ipc.EventDispatcher;
@@ -173,7 +175,17 @@ public class CreateProjectHistoryCommandHandler
                                 projectId,
                                 operationId,
                                 rootOntologyPath);
-                        return ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository);
+                        return ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository, new OntologyHistoryAnalyzerProgressMonitor() {
+                            @Override
+                            public void processingStarted(CommitMetadata commitMetadata) {
+                                eventDispatcher.dispatchEvent(new CommitProcessingStartedEvent(EventId.generate(), operationId, projectId, commitMetadata.commitHash()));
+                            }
+
+                            @Override
+                            public void processingFinished(CommitMetadata commitMetadata) {
+
+                            }
+                        });
                     } catch (OntologyComparisonException e) {
                         logger.error(
                                 "{} {} Failed to extract ontology changes from file {}",

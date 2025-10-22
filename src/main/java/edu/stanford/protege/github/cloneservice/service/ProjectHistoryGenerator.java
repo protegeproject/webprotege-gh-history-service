@@ -8,6 +8,7 @@ import edu.stanford.protege.github.cloneservice.exception.OntologyComparisonExce
 import edu.stanford.protege.github.cloneservice.exception.StorageException;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzer;
+import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzerProgressMonitor;
 import edu.stanford.protege.webprotege.common.BlobLocation;
 import edu.stanford.protege.webprotege.common.ProjectId;
 import edu.stanford.protege.webprotege.common.UserId;
@@ -26,6 +27,7 @@ public class ProjectHistoryGenerator {
     private final Logger logger = LoggerFactory.getLogger(ProjectHistoryGenerator.class);
 
     private final OntologyHistoryAnalyzer ontologyHistoryAnalyzer;
+
     private final ProjectHistoryStorer projectHistoryStorer;
 
     public ProjectHistoryGenerator(
@@ -56,11 +58,12 @@ public class ProjectHistoryGenerator {
             UserId userId,
             ProjectId projectId,
             BranchCoordinates branchCoordinates,
-            RelativeFilePath rootOntologyPath) {
+            RelativeFilePath rootOntologyPath,
+            OntologyHistoryAnalyzerProgressMonitor progressMonitor) {
         try {
             var localCloneDirectory = getLocalCloneDirectory(projectId, branchCoordinates);
             var repository = getGitHubRepository(branchCoordinates, localCloneDirectory, rootOntologyPath);
-            var projectHistory = ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository);
+            var projectHistory = ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository, progressMonitor);
             var projectHistoryLocation = projectHistoryStorer.storeProjectHistory(projectId, projectHistory);
             logger.info("Stored project history document at: {}", projectHistoryLocation);
             return projectHistoryLocation;
