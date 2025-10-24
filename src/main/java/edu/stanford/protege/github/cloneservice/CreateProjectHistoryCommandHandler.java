@@ -101,7 +101,7 @@ public class CreateProjectHistoryCommandHandler
                     }
                 })
                 .thenComposeAsync(repository ->
-                        generateProjectHistory(projectId, operationId, rootOntologyPath, branchCoordinates, repository))
+                        generateProjectHistory(projectId, operationId, rootOntologyPath, branchCoordinates, repository), projectHistoryCreationExecutor)
                 .whenComplete((projectHistory, t) -> {
                     if (t == null) {
                         logger.info(
@@ -113,7 +113,7 @@ public class CreateProjectHistoryCommandHandler
                     }
                 })
                 .thenComposeAsync(projectHistory ->
-                        storeProjectHistory(projectId, operationId, branchCoordinates, projectHistory))
+                        storeProjectHistory(projectId, operationId, branchCoordinates, projectHistory), projectHistoryCreationExecutor)
                 .whenComplete((documentLocation, t) -> {
                     if (t == null) {
                         logger.info(
