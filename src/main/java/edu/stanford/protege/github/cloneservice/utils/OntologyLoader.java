@@ -27,6 +27,8 @@ public class OntologyLoader {
 
     private final OntologyManagerProvider ontologyManagerProvider;
 
+    private OWLOntology emptyOntology;
+
     public OntologyLoader(@Nonnull OntologyManagerProvider ontologyManagerProvider) {
         this.ontologyManagerProvider =
                 Objects.requireNonNull(ontologyManagerProvider, "ontologyManagerProvider cannot be null");
@@ -40,13 +42,16 @@ public class OntologyLoader {
      * @return A new empty OWL ontology
      */
     @Nonnull
-    public OWLOntology createEmptyOntology() {
-        var ontologyManager = ontologyManagerProvider.getEmptyOntologyManager();
-        try {
-            return ontologyManager.createOntology();
-        } catch (OWLOntologyCreationException e) {
-            throw new RuntimeException("Failed to create empty ontology", e);
+    public synchronized OWLOntology getEmptyOntology() {
+        if(emptyOntology == null) {
+            var ontologyManager = ontologyManagerProvider.getEmptyOntologyManager();
+            try {
+                emptyOntology = ontologyManager.createOntology();
+            } catch (OWLOntologyCreationException e) {
+                throw new RuntimeException("Failed to create empty ontology", e);
+            }
         }
+        return emptyOntology;
     }
 
     /**

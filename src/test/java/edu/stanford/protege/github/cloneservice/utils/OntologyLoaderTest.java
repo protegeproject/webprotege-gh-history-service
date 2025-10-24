@@ -29,8 +29,8 @@ class OntologyLoaderTest {
 
     @Test
     @DisplayName("Should create empty ontology successfully")
-    void createEmptyOntologySuccessfully() {
-        var ontology = ontologyLoader.createEmptyOntology();
+    void getEmptyOntologySuccessfully() {
+        var ontology = ontologyLoader.getEmptyOntology();
 
         assertNotNull(ontology);
         assertTrue(ontology.getAxioms().isEmpty());
@@ -175,8 +175,8 @@ class OntologyLoaderTest {
     @Test
     @DisplayName("Should create multiple empty ontologies independently")
     void createMultipleEmptyOntologiesIndependently() {
-        var ontology1 = ontologyLoader.createEmptyOntology();
-        var ontology2 = ontologyLoader.createEmptyOntology();
+        var ontology1 = ontologyLoader.getEmptyOntology();
+        var ontology2 = ontologyLoader.getEmptyOntology();
 
         assertNotNull(ontology1);
         assertNotNull(ontology2);
