@@ -1,0 +1,234 @@
+options {
+  STATIC = false;
+  UNICODE_INPUT = true;
+  JAVA_UNICODE_ESCAPE = true;
+}
+
+PARSER_BEGIN(FsParser)
+package edu.stanford.protege.github.cloneservice.utils;
+
+import java.util.*;
+
+public class FsParser {
+
+  /** Output model for splitting */
+  public static final class FsDoc {
+    public final List<PrefixDecl> prefixes = new ArrayList<>();
+    public String ontologyIri;   // as written (e.g., <http://...> or hp:Thing), may be null
+    public String versionIri;    // as written, may be null
+    public final List<String> imports = new ArrayList<>(); // as written
+    public final List<Axiom> axioms = new ArrayList<>();
+  }
+
+  public static final class PrefixDecl {
+    public final String nameWithColon; // e.g., "hp:" or ":" (default)
+    public final String iri;           // full IRI without angle brackets
+    public PrefixDecl(String nameWithColon, String iri) {
+      this.nameWithColon = nameWithColon;
+      this.iri = iri;
+    }
+    @Override public String toString() { return "Prefix(" + nameWithColon + "=<" + iri + ">)"; }
+  }
+
+  public static final class Axiom {
+    public final String head;    // e.g., SubClassOf, Declaration, AnnotationAssertion, ...
+    public final String content; // exact inner text between '(' and ')' INCLUDING any specials before final ')'
+    public Axiom(String head, String content) { this.head = head; this.content = content; }
+    @Override public String toString() { return head + "(" + content + ")"; }
+  }
+
+  /** Entry point */
+  public FsDoc parse() throws ParseException { return Document(); }
+
+  /** Append all specials (whitespace/comments) that precede token t. */
+  static void appendSpecials(StringBuilder sb, Token t) {
+    if (t == null) return;
+    Deque<Token> stack = new ArrayDeque<>();
+    for (Token s = t.specialToken; s != null; s = s.specialToken) stack.push(s);
+    while (!stack.isEmpty()) sb.append(stack.pop().image);
+  }
+
+  /** Return specials as a String (convenience). */
+  static String specialsToString(Token t) {
+    StringBuilder sb = new StringBuilder();
+    appendSpecials(sb, t);
+    return sb.toString();
+  }
+}
+PARSER_END(FsParser)
+
+/* ======================= LEXER ======================= */
+
+/* Preserve whitespace & # comments via SPECIAL_TOKENs (so we can reconstruct spacing verbatim) */
+SPECIAL_TOKEN : { < WS  : ( " " | "\t" | "\r" | "\n" )+ > }
+SPECIAL_TOKEN : { < SL_COMMENT : "#" (~["\r","\n"])* > }
+
+/* Punctuation / operators */
+TOKEN : { < LPAREN : "(" > }
+TOKEN : { < RPAREN : ")" > }
+TOKEN : { < ASSIGN : "=" > }
+TOKEN : { < COLON  : ":"  > }
+TOKEN : { < COMMA  : ","  > }
+TOKEN : { < TYPE   : "^^" > }
+TOKEN : { < LANG   : "@"  > }
+
+/* Keywords before IDENT to avoid conflicts */
+TOKEN : { < PREFIX_KW   : "Prefix"   > }
+TOKEN : { < ONTOLOGY_KW : "Ontology" > }
+TOKEN : { < IMPORT_KW   : "Import"   > }
+
+/* IRI in angle brackets (no newline, no '>') */
+TOKEN : { < IRI_REF : "<" (~[">","\r","\n"])* ">" > }
+
+/* Abbreviated IRI (pragmatic subset) prefix:local(.local)* */
+TOKEN : {
+  < ABBREV_IRI :
+      (["A"-"Z","a"-"z"]) (["A"-"Z","a"-"z","0"-"9","_","-"])* ":" (["A"-"Z","a"-"z","0"-"9","_","-"]) (["A"-"Z","a"-"z","0"-"9","_","-","."])*
+  >
+}
+
+/* String with escaping (supports \") */
+TOKEN : { < STRING : "\"" ( "\\" ~[] | ~["\\","\""] )* "\"" > }
+
+/* Generic identifier (axiom heads, names) */
+TOKEN : { < IDENT : (["A"-"Z","a"-"z"]) (["A"-"Z","a"-"z","0"-"9","_","-"])* > }
+
+/* ======================= PARSER ======================= */
+
+FsParser.FsDoc Document() :
+{
+  FsParser.FsDoc doc = new FsParser.FsDoc();
+}
+{
+  ( PrefixDecl(doc) )*
+  OntologyBlock(doc)
+  <EOF>
+  { return doc; }
+}
+
+/** Prefix(pfx:=<iri>) — using '=' after the colonized name per your current inputs. */
+void PrefixDecl(FsParser.FsDoc doc) :
+{
+  String name; String iri;
+}
+{
+  <PREFIX_KW> <LPAREN> name = PrefixNameWithColon() <ASSIGN> iri = FullIriOnly() <RPAREN>
+  { doc.prefixes.add(new FsParser.PrefixDecl(name, iri)); }
+}
+
+/** Require trailing colon; allow empty before ':' (default prefix). */
+String PrefixNameWithColon() :
+{
+  Token t = null;
+}
+{
+    ( t = <IDENT> )? <COLON>
+    { return (t != null) ? (t.image + ":") : ":"; }
+}
+
+/** Only full IRI (<...>) for prefix targets; return without angle brackets. */
+String FullIriOnly() :
+{
+  Token t;
+}
+{
+  t = <IRI_REF>
+  { String s = t.image; return s.substring(1, s.length()-1); }
+}
+
+/** Ontology( [ontologyIRI [versionIRI]] items... ) */
+void OntologyBlock(FsParser.FsDoc doc) :
+{
+  String iriText;
+}
+{
+  <ONTOLOGY_KW> <LPAREN>
+    [ iriText = IriAny() { doc.ontologyIri = iriText; } ]
+    [ iriText = IriAny() { doc.versionIri  = iriText; } ]
+    ( OntologyItem(doc) )*
+  <RPAREN>
+}
+
+/** Items inside Ontology(...) */
+void OntologyItem(FsParser.FsDoc doc) :
+{}
+{
+    ImportDecl(doc)
+  | AxiomStmt(doc)
+}
+
+/** Import(<iri|abbrev>) — store as written (with angle brackets if present). */
+void ImportDecl(FsParser.FsDoc doc) :
+{
+  String iri;
+}
+{
+  <IMPORT_KW> <LPAREN> iri = IriAny() <RPAREN>
+  { doc.imports.add(iri); }
+}
+
+/** Axiom: Head '(' ...balanced body... ')' — preserves inner spacing/comments and the specials before final ')'. */
+void AxiomStmt(FsParser.FsDoc doc) :
+{
+  Token head; String body; Token tRP;
+}
+{
+  head = <IDENT> <LPAREN>
+    body = BalancedBody()    // does NOT consume the outer RPAREN
+    tRP = <RPAREN>           // consume axiom-closing ')'
+  {
+    String content = body + specialsToString(tRP);  // keep spaces/comments before ')'
+    doc.axioms.add(new FsParser.Axiom(head.image, content));
+  }
+}
+
+/** IRI returned as written (<...> or prefix:local...). */
+String IriAny() :
+{
+  Token t;
+}
+{
+    t = <IRI_REF>     { return t.image; }
+  | t = <ABBREV_IRI>  { return t.image; }
+}
+
+/* -------- Balanced body (verbatim, with spacing/comments) -------- */
+
+/** Everything between the outer '(' and its matching ')', preserving spacing/comments. */
+String BalancedBody() :
+{
+  StringBuilder sb = new StringBuilder();
+}
+{
+  BalancedBodyItems(sb)
+  { return sb.toString(); }
+}
+
+/** Keep consuming inner items until the next token is the *outer* RPAREN. */
+void BalancedBodyItems(StringBuilder sb) :
+{}
+{
+  (
+    LOOKAHEAD( <LPAREN> | <STRING> | <IRI_REF> | <ABBREV_IRI> | <IDENT> | <COMMA> | <COLON> | <TYPE> | <LANG> )
+    InnerItem(sb)
+  )*
+}
+
+/** One inner item. Nested (...) are fully consumed (including their closing ')'). */
+void InnerItem(StringBuilder sb) :
+{
+  Token t; String inner;
+}
+{
+    t = <LPAREN> { appendSpecials(sb, t); sb.append("("); }
+      inner = BalancedBody() { sb.append(inner); }
+      t = <RPAREN> { appendSpecials(sb, t); sb.append(")"); }
+  | t = <STRING>     { appendSpecials(sb, t); sb.append(t.image); }
+  | t = <IRI_REF>    { appendSpecials(sb, t); sb.append(t.image); }
+  | t = <ABBREV_IRI> { appendSpecials(sb, t); sb.append(t.image); }
+  | t = <IDENT>      { appendSpecials(sb, t); sb.append(t.image); }
+  | t = <COMMA>      { appendSpecials(sb, t); sb.append(","); }
+  | t = <COLON>      { appendSpecials(sb, t); sb.append(":"); }
+  | t = <TYPE>       { appendSpecials(sb, t); sb.append("^^"); }
+  | t = <LANG>       { appendSpecials(sb, t); sb.append("@"); }
+}

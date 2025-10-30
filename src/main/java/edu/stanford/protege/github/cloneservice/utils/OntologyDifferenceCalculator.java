@@ -48,11 +48,13 @@ public class OntologyDifferenceCalculator {
         var removedAxioms = findRemovedAxioms(childCommitAxioms, parentCommitAxioms);
         removedAxioms.forEach(axiom -> axiomChanges.add(AxiomChange.removeAxiom(axiom, ontologyId)));
 
-        logger.info(
-                "Found {} added axioms and {} removed axioms for ontology {}",
-                addedAxioms.size(),
-                removedAxioms.size(),
-                ontologyId);
+        if(!addedAxioms.isEmpty() || !removedAxioms.isEmpty()) {
+            logger.info(
+                    "Found {} added axioms and {} removed axioms for ontology {}",
+                    addedAxioms.size(),
+                    removedAxioms.size(),
+                    ontologyId);
+        }
 
         return ImmutableList.copyOf(axiomChanges);
     }

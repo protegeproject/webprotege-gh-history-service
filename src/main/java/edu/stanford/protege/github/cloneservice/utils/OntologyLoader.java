@@ -75,11 +75,11 @@ public class OntologyLoader {
      *     catalog file is invalid, or ontology failed to load.
      */
     @Nonnull
-    public List<OWLOntology> loadOntologyWithImports(@Nonnull Path rootOntology) throws OntologyLoadException {
+    public List<OWLOntology> loadOntologyWithImports(@Nonnull Path rootOntology, LoadedOntologyCache loadedOntologyCache) throws OntologyLoadException {
         Objects.requireNonNull(rootOntology, "rootOntology cannot be null");
         try {
             var ontologyFile = getOntologyFile(rootOntology);
-            var ontologyManager = ontologyManagerProvider.getOntologyManagerWithLoadImports();
+            var ontologyManager = ontologyManagerProvider.getOntologyManagerWithLoadImports(loadedOntologyCache);
 
             // Add IRI mapper for local imports in the same directory
             ontologyManager.getIRIMappers().clear();
@@ -102,7 +102,7 @@ public class OntologyLoader {
 
             // Log information about imports
             var importedOntologies = Sets.<OWLOntology>newHashSet();
-            importedOntologies.addAll(ontology.getImports());
+            importedOntologies.addAll(ontologyManager.getOntologies());
             logger.info("Successfully loaded ontology with {} imports", importedOntologies.size());
 
             // Get all ontologies including imports
@@ -126,7 +126,7 @@ public class OntologyLoader {
      *     catalog file is invalid, or ontology failed to load.
      */
     @Nonnull
-    public List<OWLOntology> loadOntologyWithoutImports(@Nonnull Path targetOntology) throws OntologyLoadException {
+    public List<OWLOntology> loadOntologyWithoutImports(@Nonnull Path targetOntology, LoadedOntologyCache loadedOntologyCache) throws OntologyLoadException {
         Objects.requireNonNull(targetOntology, "targetOntology cannot be null");
         try {
             var ontologyFile = getOntologyFile(targetOntology);
@@ -154,7 +154,8 @@ public class OntologyLoader {
      */
     @Nonnull
     public List<OWLOntology> loadOntologyFromFile(@Nonnull Path filePath) throws OntologyLoadException {
-        return loadOntologyWithImports(filePath);
+//        return loadOntologyWithImports(filePath);
+        throw new RuntimeException("Not implemented yet");
     }
 
     /**
@@ -169,7 +170,8 @@ public class OntologyLoader {
     @Nonnull
     public List<OWLOntology> loadOntologyFromFile(@Nonnull Path filePath, boolean includeImports)
             throws OntologyLoadException {
-        return includeImports ? loadOntologyWithImports(filePath) : loadOntologyWithoutImports(filePath);
+//        return includeImports ? loadOntologyWithImports(filePath) : loadOntologyWithoutImports(filePath);
+        throw new RuntimeException("Not implemented yet");
     }
 
     private File getOntologyFile(@NotNull Path filePath) throws FileNotFoundException {
