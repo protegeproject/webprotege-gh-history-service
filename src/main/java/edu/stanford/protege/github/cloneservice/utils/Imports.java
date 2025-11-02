@@ -10,8 +10,11 @@ import java.util.stream.Collectors;
 
 public final class Imports {
 
-    public static @NotNull Set<OWLImportsDeclaration> getOwlImportsDeclarations(List<OWLOntology> baselineOnts) {
-        return baselineOnts.stream().flatMap(o -> o.getImportsDeclarations().stream()).collect(Collectors.toSet());
+    private Imports() {
+    }
+
+    public static @NotNull Set<OWLImportsDeclaration> getOwlImportsDeclarations(List<OWLOntology> onts) {
+        return onts.stream().flatMap(o -> o.getImportsDeclarations().stream()).collect(Collectors.toSet());
     }
 
 }
