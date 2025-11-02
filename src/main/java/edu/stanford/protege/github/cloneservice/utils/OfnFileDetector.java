@@ -1,7 +1,6 @@
 package edu.stanford.protege.github.cloneservice.utils;
 
 import javax.annotation.Nonnull;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

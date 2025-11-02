@@ -1,75 +1,95 @@
 package edu.stanford.protege.github.cloneservice.utils;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import edu.stanford.protege.github.cloneservice.model.AxiomChange;
-import java.util.*;
-import javax.annotation.Nonnull;
-import org.semanticweb.owlapi.model.OWLAxiom;
+import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
-/** Calculates differences between ontology versions */
-@Component
-public class OntologiesDifferenceCalculator {
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 
-    private static final Logger logger = LoggerFactory.getLogger(OntologiesDifferenceCalculator.class);
+class OntologiesDifferenceCalculator {
+
+    private final OntologyDifferencesCalculator differenceCalculator;
+
+    private final OntologyLoader ontologyLoader;
+
+    OntologiesDifferenceCalculator(OntologyDifferencesCalculator differenceCalculator, OntologyLoader ontologyLoader) {
+        this.differenceCalculator = differenceCalculator;
+        this.ontologyLoader = ontologyLoader;
+    }
 
     /**
-     * Calculates differences between baseline and ancestor commit ontologies
+     * Calculates axiom changes between current and previous commit ontologies
      *
-     * @param childCommitOntology The ontology from a baseline commit
-     * @param parentCommitOntology The ontology from a ancestor commit
-     * @return OntologyDifference containing all changes for this commit
+     * @param baselineCommitOntologies ontologies from the baseline commit
+     * @param parentCommitOntologies   ontologies from the ancestor commit
+     * @return list of axiom changes between commits
      */
     @Nonnull
-    public List<AxiomChange> calculateAxiomChanges(
-            @Nonnull OWLOntology childCommitOntology,
-            @Nonnull OWLOntology parentCommitOntology,
-            @Nonnull OWLOntologyID ontologyId) {
+    public List<AxiomChange> calculateAxiomChangesBetweenOntologies(
+            @Nonnull List<OWLOntology> baselineCommitOntologies,
+            @Nonnull List<OWLOntology> parentCommitOntologies) {
 
-        Objects.requireNonNull(childCommitOntology, "childCommitOntology cannot be null");
-        Objects.requireNonNull(parentCommitOntology, "parentCommitOntology cannot be null");
+        var baselinesByIri = new HashMap<IRI, OWLOntology>();
+        var ancestorsByIri = new HashMap<IRI, OWLOntology>();
 
-        var axiomChanges = Lists.<AxiomChange>newArrayList();
+        baselineCommitOntologies.forEach(ont -> baselinesByIri.put(ontologyKey(ont), ont));
+        parentCommitOntologies.forEach(ont -> ancestorsByIri.put(ontologyKey(ont), ont));
 
-        var childCommitAxioms = Sets.newHashSet(childCommitOntology.getAxioms());
-        var parentCommitAxioms = Sets.newHashSet(parentCommitOntology.getAxioms());
+        var pairs = new ArrayList<OntologyPair>();
 
-        // Find added axioms (present in current but not in previous)
-        var addedAxioms = findAddedAxioms(childCommitAxioms, parentCommitAxioms);
-        addedAxioms.forEach(axiom -> axiomChanges.add(AxiomChange.addAxiom(axiom, ontologyId)));
-
-        // Find removed axioms (present in previous but not in current)
-        var removedAxioms = findRemovedAxioms(childCommitAxioms, parentCommitAxioms);
-        removedAxioms.forEach(axiom -> axiomChanges.add(AxiomChange.removeAxiom(axiom, ontologyId)));
-
-        if(!addedAxioms.isEmpty() || !removedAxioms.isEmpty()) {
-            logger.debug(
-                    "Found {} added axioms and {} removed axioms for ontology {}",
-                    addedAxioms.size(),
-                    removedAxioms.size(),
-                    ontologyId);
+        // 1) Matched pairs (remove matched keys from both maps)
+        var matchedKeys = new HashSet<>(baselinesByIri.keySet());
+        matchedKeys.retainAll(ancestorsByIri.keySet());
+        for(var iri : matchedKeys) {
+            pairs.add(new OntologyPair(baselinesByIri.remove(iri), ancestorsByIri.remove(iri)));
         }
 
-        return ImmutableList.copyOf(axiomChanges);
+        // 2) Parent-only → removed; baseline-only → added
+        ancestorsByIri.values().forEach(p -> pairs.add(new OntologyPair(ontologyLoader.getEmptyOntology(), p)));
+        baselinesByIri.values().forEach(c -> pairs.add(new OntologyPair(c, ontologyLoader.getEmptyOntology())));
+
+        return pairs.stream()
+                .flatMap(pair -> differenceCalculator
+                        .calculateAxiomChanges(
+                                pair.baseline,
+                                pair.parent,
+                                // Prefer baseline’s real ID if not anonymous; else use ancestor’s; else synthesize
+                                effectiveOntologyId(pair.baseline, pair.parent))
+                        .stream())
+                .collect(ImmutableList.toImmutableList());
     }
 
-    /** Finds axioms that were added (present in current but not in previous) */
-    private Set<OWLAxiom> findAddedAxioms(Set<OWLAxiom> currentAxioms, Set<OWLAxiom> previousAxioms) {
-        var addedAxioms = new HashSet<>(currentAxioms);
-        addedAxioms.removeAll(previousAxioms);
-        return addedAxioms;
+    private record OntologyPair(OWLOntology baseline, OWLOntology parent) {
+
     }
 
-    /** Finds axioms that were removed (present in previous but not in current) */
-    private Set<OWLAxiom> findRemovedAxioms(Set<OWLAxiom> currentAxioms, Set<OWLAxiom> previousAxioms) {
-        var removedAxioms = new HashSet<>(previousAxioms);
-        removedAxioms.removeAll(currentAxioms);
-        return removedAxioms;
+
+    private static IRI ontologyKey(OWLOntology ont) {
+        var id = ont.getOntologyID();
+        return id.getOntologyIRI()
+                .or(() -> id.getDefaultDocumentIRI().or(IRI.generateDocumentIRI()));
     }
+
+    private static OWLOntologyID effectiveOntologyId(OWLOntology baseline, OWLOntology parent) {
+        var cid = baseline.getOntologyID();
+        if(!cid.isAnonymous()) {
+            return cid;
+        }
+        var pid = parent.getOntologyID();
+        if(!pid.isAnonymous()) {
+            return pid;
+        }
+        // Fallback: derive from the baseline key to keep stable-ish identity
+        var iri = baseline.getOntologyID().getDefaultDocumentIRI()
+                .or(IRI::generateDocumentIRI);
+        return new OWLOntologyID(iri, null);
+    }
+
+
 }

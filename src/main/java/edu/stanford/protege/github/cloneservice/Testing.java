@@ -52,7 +52,7 @@ public class Testing {
 
         OntologyManagerProvider provider = new OntologyManagerProvider();
         OntologyLoader loader = new OntologyLoader(provider);
-        OntologiesDifferenceCalculator calc = new OntologiesDifferenceCalculator();
+        OntologyDifferencesCalculator calc = new OntologyDifferencesCalculator();
         OntologyHistoryAnalyzer analyzer = new OntologyHistoryAnalyzer(loader, calc, Duration.ofHours(5), provider);
         analyzer.getCommitHistory(new RelativeFilePath("src/ontology/"+acronym+"-edit" + extension), repo, new OntologyHistoryAnalyzerProgressMonitor() {
 //        analyzer.getCommitHistory(new RelativeFilePath("src/ontology/test-ont.owl"), repo, new OntologyHistoryAnalyzerProgressMonitor() {

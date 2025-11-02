@@ -92,9 +92,9 @@ public class OntologyManagerProvider {
                 // This is where the loading actually happens
                 var loadedOnt = loadedOntologyCache.get(documentSource);
                 if(loadedOnt.isPresent()) {
-                    copyOntology(loadedOnt.get(), OntologyCopy.DEEP);
+                    var copy = copyOntology(loadedOnt.get(), OntologyCopy.DEEP);
                     loadedOnt.get().getImportsDeclarations().forEach(decl -> makeLoadImportRequest(decl, configuration));
-                    return loadedOnt.get();
+                    return copy;
                 }
                 var freshlyLoadedOnt = super.actualParse(documentSource, configuration);
                 loadedOntologyCache.put(documentSource, freshlyLoadedOnt);

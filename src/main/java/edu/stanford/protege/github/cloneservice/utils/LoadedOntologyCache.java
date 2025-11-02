@@ -52,7 +52,7 @@ public class LoadedOntologyCache {
         if(blobId.isEmpty()) {
             return Optional.empty();
         }
-        Optional<OWLOntology> ont = Optional.ofNullable(cache.get(docIri, blobId.orElse("" )));
+        Optional<OWLOntology> ont = Optional.ofNullable(cache.get(docIri, blobId.get()));
         if(ont.isPresent()) {
             cacheHits++;
             logger.debug("Cache hit for ontology load request. [cacheHits={}, documentSource={}]", cacheHits, documentSource);

@@ -55,8 +55,8 @@ class GroceryOntologyIntegrationTest {
     void setUp() {
         var ontologyManagerProvider = new OntologyManagerProvider();
         var ontologyLoader = new OntologyLoader(ontologyManagerProvider);
-        var differenceCalculator = new OntologiesDifferenceCalculator();
-        historyAnalyzer = new OntologyHistoryAnalyzer(ontologyLoader, differenceCalculator);
+        var differenceCalculator = new OntologyDifferencesCalculator();
+        historyAnalyzer = OntologyHistoryAnalyzer.withDefaultMaxAnalysisTime(ontologyLoader, differenceCalculator);
 
         // Use the new ProjectHistoryConverter which includes the ordering logic
         var changeCommitToRevisionConverter = new ChangeCommitToRevisionConverter();

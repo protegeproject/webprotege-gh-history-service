@@ -25,7 +25,7 @@ class OntologyHistoryAnalyzerTest {
     private OntologyLoader ontologyLoader;
 
     @Mock
-    private OntologiesDifferenceCalculator differenceCalculator;
+    private OntologyDifferencesCalculator differenceCalculator;
 
     @Mock
     private GitHubRepository gitHubRepository;
@@ -35,14 +35,14 @@ class OntologyHistoryAnalyzerTest {
 
     @BeforeEach
     void setUp() {
-        historyAnalyzer = new OntologyHistoryAnalyzer(ontologyLoader, differenceCalculator);
+        historyAnalyzer = OntologyHistoryAnalyzer.withDefaultMaxAnalysisTime(ontologyLoader, differenceCalculator);
     }
 
     @Test
     @DisplayName("Should throw NullPointerException when ontologyLoader is null")
     void throwExceptionWhenOntologyLoaderNull() {
         var exception =
-                assertThrows(NullPointerException.class, () -> new OntologyHistoryAnalyzer(null, differenceCalculator));
+                assertThrows(NullPointerException.class, () -> OntologyHistoryAnalyzer.withDefaultMaxAnalysisTime(null, differenceCalculator));
 
         assertEquals("OntologyLoader cannot be null", exception.getMessage());
     }
@@ -51,9 +51,9 @@ class OntologyHistoryAnalyzerTest {
     @DisplayName("Should throw NullPointerException when differenceCalculator is null")
     void throwExceptionWhenDifferenceCalculatorNull() {
         var exception =
-                assertThrows(NullPointerException.class, () -> new OntologyHistoryAnalyzer(ontologyLoader, null));
+                assertThrows(NullPointerException.class, () -> OntologyHistoryAnalyzer.withDefaultMaxAnalysisTime(ontologyLoader, null));
 
-        assertEquals("OntologiesDifferenceCalculator cannot be null", exception.getMessage());
+        assertEquals("OntologyDifferencesCalculator cannot be null", exception.getMessage());
     }
 
     @Test
@@ -103,13 +103,13 @@ class OntologyHistoryAnalyzerTest {
     void validateConstructorParametersUsingObjectsRequireNonNull() {
         // Test first parameter validation
         var exception1 =
-                assertThrows(NullPointerException.class, () -> new OntologyHistoryAnalyzer(null, differenceCalculator));
+                assertThrows(NullPointerException.class, () -> OntologyHistoryAnalyzer.withDefaultMaxAnalysisTime(null, differenceCalculator));
         assertEquals("OntologyLoader cannot be null", exception1.getMessage());
 
         // Test second parameter validation
         var exception2 =
-                assertThrows(NullPointerException.class, () -> new OntologyHistoryAnalyzer(ontologyLoader, null));
-        assertEquals("OntologiesDifferenceCalculator cannot be null", exception2.getMessage());
+                assertThrows(NullPointerException.class, () -> OntologyHistoryAnalyzer.withDefaultMaxAnalysisTime(ontologyLoader, null));
+        assertEquals("OntologyDifferencesCalculator cannot be null", exception2.getMessage());
     }
 
     @Test

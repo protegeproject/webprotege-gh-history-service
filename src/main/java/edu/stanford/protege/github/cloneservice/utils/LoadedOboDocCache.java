@@ -51,7 +51,7 @@ public class LoadedOboDocCache {
         if(blobId.isEmpty()) {
             return Optional.empty();
         }
-        Optional<FastOboDiff.OboDoc> doc = Optional.ofNullable(cache.get(docIri, blobId.orElse("" )));
+        Optional<FastOboDiff.OboDoc> doc = Optional.ofNullable(cache.get(docIri, blobId.get()));
         if(doc.isPresent()) {
             cacheHits++;
             logger.debug("Cache hit for OBO doc load request. [cacheHits={}, documentSource={}]", cacheHits, documentSource);
