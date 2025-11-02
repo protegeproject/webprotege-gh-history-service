@@ -26,9 +26,4 @@ public record GenerateProjectHistorySucceededEvent(
     public String getChannel() {
         return CHANNEL;
     }
-
-    @Override
-    public EventId eventId() {
-        return null;
-    }
 }
