@@ -23,8 +23,8 @@ final class CommitWindow {
     private int lastLoadedIndex = -1;
 
 
-    CommitWindow(CommitNavigator nav) {
-        this.nav = new UncheckedCommitNavigator(nav);
+    CommitWindow(UncheckedCommitNavigator nav) {
+        this.nav = nav;
     }
 
     public boolean hasBaselineCommit() {

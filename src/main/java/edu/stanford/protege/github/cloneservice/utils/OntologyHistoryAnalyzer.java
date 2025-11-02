@@ -164,7 +164,7 @@ public class OntologyHistoryAnalyzer {
                 var startTime = Instant.now();
 
 
-                var window = new CommitWindow(commitNavigator);
+                var window = new CommitWindow(new UncheckedCommitNavigator(commitNavigator));
 
                 var cache = new LoadedOntologyCache((path) -> {
                     return getCheckedOutBlobIdForPath(path, commitNavigator);
