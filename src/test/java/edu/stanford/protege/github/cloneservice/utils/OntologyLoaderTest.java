@@ -220,7 +220,7 @@ class OntologyLoaderTest {
         Files.writeString(importedFile, importedOntologyContent);
         Files.writeString(mainFile, mainOntologyContent);
 
-        var result = ontologyLoader.loadOntologyWithImports(mainFile, new LoadedOntologyCache(path -> Optional.empty()));
+        var result = ontologyLoader.loadOntologyWithImports(mainFile, new LoadedOntologyCache((path) -> Optional.empty()));
 
         assertNotNull(result);
         assertFalse(result.isEmpty());
@@ -265,7 +265,7 @@ class OntologyLoaderTest {
         Files.writeString(importedFile, importedOntologyContent);
         Files.writeString(mainFile, mainOntologyContent);
 
-        var result = ontologyLoader.loadOntologyWithoutImports(mainFile, new LoadedOntologyCache(path -> Optional.empty()));
+        var result = ontologyLoader.loadOntologyWithoutImports(mainFile, new LoadedOntologyCache((path) -> Optional.empty()));
 
         assertNotNull(result);
         assertFalse(result.isEmpty());
@@ -331,7 +331,7 @@ class OntologyLoaderTest {
     @Test
     @DisplayName("Should throw NullPointerException when rootOntology path is null in loadOntologyWithImports")
     void throwExceptionWhenRootOntologyPathNullInLoadWithImports() {
-        var exception = assertThrows(NullPointerException.class, () -> ontologyLoader.loadOntologyWithImports(null, new LoadedOntologyCache(path -> Optional.empty())));
+        var exception = assertThrows(NullPointerException.class, () -> ontologyLoader.loadOntologyWithImports(null, new LoadedOntologyCache((path) -> Optional.empty())));
 
         assertEquals("rootOntology cannot be null", exception.getMessage());
     }
@@ -339,7 +339,7 @@ class OntologyLoaderTest {
     @Test
     @DisplayName("Should throw NullPointerException when targetOntology path is null in loadOntologyWithoutImports")
     void throwExceptionWhenTargetOntologyPathNullInLoadWithoutImports() {
-        var exception = assertThrows(NullPointerException.class, () -> ontologyLoader.loadOntologyWithoutImports(null, new LoadedOntologyCache(path -> Optional.empty())));
+        var exception = assertThrows(NullPointerException.class, () -> ontologyLoader.loadOntologyWithoutImports(null, new LoadedOntologyCache((path) -> Optional.empty())));
 
         assertEquals("targetOntology cannot be null", exception.getMessage());
     }

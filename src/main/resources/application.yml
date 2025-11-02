@@ -16,3 +16,8 @@ webprotege:
     requestqueue: webprotege-project-history-service-queue
     responsequeue: webprotege-project-history-service-response-queue
     timeout: 60000
+
+logging:
+  level:
+    org.obolibrary.oboformat.parser.OBOFormatParser: OFF
+    org.obolibrary.oboformat.parser: OFF

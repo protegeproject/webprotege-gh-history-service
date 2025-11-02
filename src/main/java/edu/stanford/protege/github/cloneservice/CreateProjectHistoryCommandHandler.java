@@ -176,13 +176,24 @@ public class CreateProjectHistoryCommandHandler
                                 operationId,
                                 rootOntologyPath);
                         return ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository, new OntologyHistoryAnalyzerProgressMonitor() {
+
                             @Override
-                            public void processingStarted(CommitMetadata commitMetadata) {
+                            public void processingHistoryStarted(String repositoryUrl, int numberOfCommits) {
+
+                            }
+
+                            @Override
+                            public void processingHistoryFinished() {
+
+                            }
+
+                            @Override
+                            public void processingCommitStarted(CommitMetadata commitMetadata) {
                                 eventDispatcher.dispatchEvent(new CommitProcessingStartedEvent(EventId.generate(), operationId, projectId, commitMetadata.commitHash()));
                             }
 
                             @Override
-                            public void processingFinished(CommitMetadata commitMetadata) {
+                            public void processingCommitFinished(CommitMetadata commitMetadata) {
 
                             }
                         });

@@ -1,7 +1,6 @@
 package edu.stanford.protege.github.cloneservice.utils;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import edu.stanford.protege.commitnavigator.GitHubRepository;
@@ -26,7 +25,7 @@ class OntologyHistoryAnalyzerTest {
     private OntologyLoader ontologyLoader;
 
     @Mock
-    private OntologyDifferenceCalculator differenceCalculator;
+    private OntologiesDifferenceCalculator differenceCalculator;
 
     @Mock
     private GitHubRepository gitHubRepository;
@@ -54,7 +53,7 @@ class OntologyHistoryAnalyzerTest {
         var exception =
                 assertThrows(NullPointerException.class, () -> new OntologyHistoryAnalyzer(ontologyLoader, null));
 
-        assertEquals("OntologyDifferenceCalculator cannot be null", exception.getMessage());
+        assertEquals("OntologiesDifferenceCalculator cannot be null", exception.getMessage());
     }
 
     @Test
@@ -110,7 +109,7 @@ class OntologyHistoryAnalyzerTest {
         // Test second parameter validation
         var exception2 =
                 assertThrows(NullPointerException.class, () -> new OntologyHistoryAnalyzer(ontologyLoader, null));
-        assertEquals("OntologyDifferenceCalculator cannot be null", exception2.getMessage());
+        assertEquals("OntologiesDifferenceCalculator cannot be null", exception2.getMessage());
     }
 
     @Test

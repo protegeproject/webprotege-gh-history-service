@@ -22,7 +22,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.N;
 
 /**
  * Integration test that coordinates with the grocery-ontology GitHub repository, gets the project
@@ -56,7 +55,7 @@ class GroceryOntologyIntegrationTest {
     void setUp() {
         var ontologyManagerProvider = new OntologyManagerProvider();
         var ontologyLoader = new OntologyLoader(ontologyManagerProvider);
-        var differenceCalculator = new OntologyDifferenceCalculator();
+        var differenceCalculator = new OntologiesDifferenceCalculator();
         historyAnalyzer = new OntologyHistoryAnalyzer(ontologyLoader, differenceCalculator);
 
         // Use the new ProjectHistoryConverter which includes the ordering logic

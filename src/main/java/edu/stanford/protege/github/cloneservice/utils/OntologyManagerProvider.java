@@ -1,10 +1,7 @@
 package edu.stanford.protege.github.cloneservice.utils;
 
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.functional.parser.OWLFunctionalSyntaxOWLParserFactory;
-import org.semanticweb.owlapi.io.FileDocumentSource;
 import org.semanticweb.owlapi.io.OWLOntologyDocumentSource;
 import org.semanticweb.owlapi.manchestersyntax.parser.ManchesterOWLSyntaxOntologyParserFactory;
 import org.semanticweb.owlapi.model.*;
@@ -38,7 +35,7 @@ public class OntologyManagerProvider {
     }
 
     public OWLOntologyManager getOntologyManagerWithLoadImports() {
-        return getOntologyManagerWithLoadImports(new LoadedOntologyCache(path -> Optional.empty()));
+        return getOntologyManagerWithLoadImports(new LoadedOntologyCache((path) -> Optional.empty()));
     }
 
     public OWLOntologyManager getOntologyManagerWithLoadImports(LoadedOntologyCache loadedOntologyCache) {
@@ -54,7 +51,7 @@ public class OntologyManagerProvider {
     }
 
     public OWLOntologyManager getOntologyManagerWithIgnoredImports() {
-        var man = getCustomOntologyManager(new LoadedOntologyCache(path -> Optional.empty()));
+        var man = getCustomOntologyManager(new LoadedOntologyCache((path) -> Optional.empty()));
 
         // Configure silent handling of missing/anonymous imports
         var config = new OWLOntologyLoaderConfiguration() {
@@ -65,6 +62,11 @@ public class OntologyManagerProvider {
 
             @Override
             public boolean shouldRepairIllegalPunnings() {
+                return false;
+            }
+
+            @Override
+            public boolean isStrict() {
                 return false;
             }
         };

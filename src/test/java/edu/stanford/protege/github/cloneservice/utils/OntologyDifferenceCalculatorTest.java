@@ -15,12 +15,12 @@ import org.semanticweb.owlapi.model.OWLAxiom;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyID;
 
-/** Unit tests for {@link OntologyDifferenceCalculator} */
+/** Unit tests for {@link OntologiesDifferenceCalculator} */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("OntologyDifferenceCalculator Tests")
+@DisplayName("OntologiesDifferenceCalculator Tests")
 class OntologyDifferenceCalculatorTest {
 
-    private OntologyDifferenceCalculator differenceCalculator;
+    private OntologiesDifferenceCalculator differenceCalculator;
 
     @Mock
     private OWLOntology currentOntology;
@@ -42,7 +42,7 @@ class OntologyDifferenceCalculatorTest {
 
     @BeforeEach
     void setUp() {
-        differenceCalculator = new OntologyDifferenceCalculator();
+        differenceCalculator = new OntologiesDifferenceCalculator();
     }
 
     @Test

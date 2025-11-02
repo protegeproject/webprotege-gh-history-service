@@ -15,15 +15,15 @@ import org.springframework.stereotype.Component;
 
 /** Calculates differences between ontology versions */
 @Component
-public class OntologyDifferenceCalculator {
+public class OntologiesDifferenceCalculator {
 
-    private static final Logger logger = LoggerFactory.getLogger(OntologyDifferenceCalculator.class);
+    private static final Logger logger = LoggerFactory.getLogger(OntologiesDifferenceCalculator.class);
 
     /**
-     * Calculates differences between child and parent commit ontologies
+     * Calculates differences between baseline and ancestor commit ontologies
      *
-     * @param childCommitOntology The ontology from a child commit
-     * @param parentCommitOntology The ontology from a parent commit
+     * @param childCommitOntology The ontology from a baseline commit
+     * @param parentCommitOntology The ontology from a ancestor commit
      * @return OntologyDifference containing all changes for this commit
      */
     @Nonnull
@@ -49,7 +49,7 @@ public class OntologyDifferenceCalculator {
         removedAxioms.forEach(axiom -> axiomChanges.add(AxiomChange.removeAxiom(axiom, ontologyId)));
 
         if(!addedAxioms.isEmpty() || !removedAxioms.isEmpty()) {
-            logger.info(
+            logger.debug(
                     "Found {} added axioms and {} removed axioms for ontology {}",
                     addedAxioms.size(),
                     removedAxioms.size(),

@@ -4,7 +4,11 @@ import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 
 public interface OntologyHistoryAnalyzerProgressMonitor {
 
-    void processingStarted(CommitMetadata commitMetadata);
+    void processingHistoryStarted(String repositoryUrl, int numberOfCommits);
 
-    void processingFinished(CommitMetadata commitMetadata);
+    void processingCommitStarted(CommitMetadata commitMetadata);
+
+    void processingCommitFinished(CommitMetadata commitMetadata);
+
+    void processingHistoryFinished();
 }

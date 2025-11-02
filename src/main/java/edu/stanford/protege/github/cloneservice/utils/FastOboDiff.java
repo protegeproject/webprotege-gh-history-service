@@ -47,6 +47,14 @@ public final class FastOboDiff {
         return differ.diff(parser.parse(beforeText), parser.parse(afterText));
     }
 
+    public DiffResult diff(OboDoc beforeDoc, OboDoc afterDoc) {
+        return differ.diff(beforeDoc, afterDoc);
+    }
+
+    public DiffResult diff(OboDoc beforeDoc, String afterText) {
+        return differ.diff(beforeDoc, parser.parse(afterText));
+    }
+
     /**
      * Render BEFORE file: old front matter + removed + changed(old).
      */
@@ -59,6 +67,10 @@ public final class FastOboDiff {
      */
     public String renderAfter(DiffResult r) {
         return renderer.renderAfter(r);
+    }
+
+    public OboDoc parse(String text) {
+        return parser.parse(text);
     }
 
     /**
@@ -144,7 +156,7 @@ public final class FastOboDiff {
             this.opts = opts;
         }
 
-        DiffResult diff(OboDoc before, OboDoc after) {
+        public DiffResult diff(OboDoc before, OboDoc after) {
             var beforeFront = before.frontMatter();
             var afterFront = after.frontMatter();
 

@@ -5,12 +5,22 @@ import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 public class NullProgressMonitor implements OntologyHistoryAnalyzerProgressMonitor {
 
     @Override
-    public void processingStarted(CommitMetadata commitMetadata) {
+    public void processingHistoryStarted(String repositoryUrl, int numberOfCommits) {
 
     }
 
     @Override
-    public void processingFinished(CommitMetadata commitMetadata) {
+    public void processingCommitStarted(CommitMetadata commitMetadata) {
+
+    }
+
+    @Override
+    public void processingCommitFinished(CommitMetadata commitMetadata) {
+
+    }
+
+    @Override
+    public void processingHistoryFinished() {
 
     }
 }

@@ -14,17 +14,20 @@ import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import org.jetbrains.annotations.NotNull;
 import org.semanticweb.owlapi.functional.parser.OWLFunctionalSyntaxOWLParserFactory;
+import org.semanticweb.owlapi.io.FileDocumentSource;
 import org.semanticweb.owlapi.io.StringDocumentSource;
 import org.semanticweb.owlapi.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import javax.annotation.Nonnull;
 import javax.inject.Inject;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -47,7 +50,7 @@ public class OntologyHistoryAnalyzer {
 
     private final OntologyLoader ontologyLoader;
 
-    private final OntologyDifferenceCalculator differenceCalculator;
+    private final OntologiesDifferenceCalculator differenceCalculator;
 
     private final Duration maxAnalysisDuration;
 
@@ -59,12 +62,12 @@ public class OntologyHistoryAnalyzer {
 
     @Inject
     public OntologyHistoryAnalyzer(OntologyLoader ontologyLoader,
-                                   OntologyDifferenceCalculator differenceCalculator,
+                                   OntologiesDifferenceCalculator differenceCalculator,
                                    @Value("${webprotege.github.max-analysis-time:5m}")
                                        Duration maxAnalysisDuration, OntologyManagerProvider ontologyManagerProvider) {
         this.ontologyLoader = Objects.requireNonNull(ontologyLoader, "OntologyLoader cannot be null");
         this.differenceCalculator =
-                Objects.requireNonNull(differenceCalculator, "OntologyDifferenceCalculator cannot be null");
+                Objects.requireNonNull(differenceCalculator, "OntologiesDifferenceCalculator cannot be null");
         this.maxAnalysisDuration = maxAnalysisDuration;
         this.ontologyManagerProvider = ontologyManagerProvider;
         for(var filterPattern : INCLUDE_FILTER_PATTERNS) {
@@ -75,19 +78,18 @@ public class OntologyHistoryAnalyzer {
         }
     }
 
-    public OntologyHistoryAnalyzer(OntologyLoader ontologyLoader, OntologyDifferenceCalculator differenceCalculator) {
+    public OntologyHistoryAnalyzer(OntologyLoader ontologyLoader, OntologiesDifferenceCalculator differenceCalculator) {
         this(ontologyLoader, differenceCalculator, Duration.ofMinutes(10), new OntologyManagerProvider());
     }
 
-    private static void safeResetWorkingDirectory(Path workingDirectory) {
+    private static void safeResetRepository(GitHubRepository repository) {
         try {
-            if(workingDirectory != null) {
-                CommitNavigator cm = CommitNavigatorBuilder.forWorkingDirectory(workingDirectory).build();
-//                cm.reset();
-            }
+            var workingDirectory = repository.getWorkingDirectory();
+            CommitNavigator cm = CommitNavigatorBuilder.forWorkingDirectory(workingDirectory).build();
+            cm.checkoutCommitAt(0);
         } catch(Exception e) {
             // best effort
-            logger.warn("Working directory could not be reset" , e);
+            logger.warn("Working directory could not be reset", e);
         }
     }
 
@@ -95,10 +97,10 @@ public class OntologyHistoryAnalyzer {
         logger.info("Total number of axiom changes: {}" , axiomChanges.size());
     }
 
-    private static void forceFunctionalSyntaxParsing(OWLOntologyManager childManager) {
-        var childParsers = childManager.getOntologyParsers();
-        childParsers.clear();
-        childParsers.add(new OWLFunctionalSyntaxOWLParserFactory());
+    private static void forceFunctionalSyntaxParsing(OWLOntologyManager baselineManager) {
+        var baselineParsers = baselineManager.getOntologyParsers();
+        baselineParsers.clear();
+        baselineParsers.add(new OWLFunctionalSyntaxOWLParserFactory());
     }
 
     private static IRI ontologyKey(OWLOntology ont) {
@@ -107,8 +109,8 @@ public class OntologyHistoryAnalyzer {
                 .or(() -> id.getDefaultDocumentIRI().or(IRI.generateDocumentIRI()));
     }
 
-    private static OWLOntologyID effectiveOntologyId(OWLOntology child, OWLOntology parent) {
-        var cid = child.getOntologyID();
+    private static OWLOntologyID effectiveOntologyId(OWLOntology baseline, OWLOntology parent) {
+        var cid = baseline.getOntologyID();
         if(!cid.isAnonymous()) {
             return cid;
         }
@@ -116,10 +118,54 @@ public class OntologyHistoryAnalyzer {
         if(!pid.isAnonymous()) {
             return pid;
         }
-        // Fallback: derive from the child key to keep stable-ish identity
-        var iri = child.getOntologyID().getDefaultDocumentIRI()
+        // Fallback: derive from the baseline key to keep stable-ish identity
+        var iri = baseline.getOntologyID().getDefaultDocumentIRI()
                 .or(IRI::generateDocumentIRI);
-        return new OWLOntologyID(Optional.of(iri), Optional.empty());
+        return new OWLOntologyID(iri, null);
+    }
+
+    private static Optional<String> getCheckedOutBlobIdForPath(Path path, CommitNavigator commitNavigator) {
+        try {
+            var relativePath = commitNavigator.relativize(path);
+            var currentCommit = commitNavigator.getCurrentCommit().orElseThrow();
+            return commitNavigator.getBlobId(relativePath.toString(), currentCommit.commitHash());
+        } catch(RepositoryException e) {
+            logger.warn("Could not resolve blob id" );
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<String> getBlobIdForPath(Path path, CommitNavigator commitNavigator, int index) {
+        try {
+            var relativePath = commitNavigator.relativize(path);
+            var currentCommit = commitNavigator.getCommitAt(index);
+            return commitNavigator.getBlobId(relativePath.toString(), currentCommit.commitHash());
+        } catch(RepositoryException e) {
+            logger.warn("Could not resolve blob id" );
+            return Optional.empty();
+        }
+    }
+
+    private static @NotNull Set<OWLImportsDeclaration> getOwlImportsDeclarations(List<OWLOntology> baselineOnts) {
+        return baselineOnts.stream().flatMap(o -> o.getImportsDeclarations().stream()).collect(Collectors.toSet());
+    }
+
+    private void recordProcessingStarted(@NotNull OntologyHistoryAnalyzerProgressMonitor progressMonitor, CommitMetadata commitMetadata) {
+        if(commitMetadata != null) {
+            progressMonitor.processingCommitStarted(commitMetadata);
+        }
+    }
+
+    private void recordProcessingFinished(@NotNull OntologyHistoryAnalyzerProgressMonitor progressMonitor, CommitMetadata commitMetadata) {
+        if(commitMetadata != null) {
+            progressMonitor.processingCommitFinished(commitMetadata);
+        }
+    }
+
+    private List<ChangedFile> getFilteredChangedFiles(CommitMetadata commitMetadata) {
+        return commitMetadata.getChangedFiles().stream()
+                .filter(f -> matchesFilters(f.path()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -145,276 +191,96 @@ public class OntologyHistoryAnalyzer {
             var repositoryUrl = gitHubRepository.getConfig().getRepositoryUrl();
             var allCommitChanges = Lists.<OntologyCommitChange>newArrayList();
 
-            Path workingDirectory = null;
             try {
                 // Get the working directory from the repository
-                workingDirectory = gitHubRepository.getWorkingDirectory();
+                var gitDirectory = gitHubRepository.getWorkingDirectory();
 
                 // Configure commit navigator to focus on the target ontology file
                 var rootOntologyFile = ontologyFilePath.asString();
-                var commitNavigator = CommitNavigatorBuilder.forWorkingDirectory(workingDirectory)
+                var commitNavigator = CommitNavigatorBuilder.forWorkingDirectory(gitDirectory)
                         .withRequiredRepoPath(rootOntologyFile)
                         .fileFilters(INCLUDE_FILTER_PATTERNS)
                         .build();
 
                 var startTime = Instant.now();
-                // Resolve the absolute path to the ontology file in the local clone
-                var ontologyFile = commitNavigator.resolveFilePath(rootOntologyFile);
 
-                var cache = new LoadedOntologyCache(path -> {
-                    try {
-                        var relativePath = commitNavigator.relativize(path);
-                        var currentCommit = commitNavigator.getCurrentCommit();
-                        return commitNavigator.getBlobId(relativePath.toString(), currentCommit.commitHash());
-                    } catch(RepositoryException e) {
-                        logger.warn("Could not resolve blob id" );
-                        return Optional.empty();
-                    }
 
+                var window = new CommitWindow(commitNavigator);
+
+                var cache = new LoadedOntologyCache((path) -> {
+                    return getCheckedOutBlobIdForPath(path, commitNavigator);
                 });
 
-                // Get the current commit metadata
-                var childCommitMetadata = commitNavigator.getCurrentCommit();
-                recordProcessingStarted(progressMonitor, childCommitMetadata);
-                var childCommitOntologies = loadOntologiesWithErrorHandling(ontologyFile, childCommitMetadata, false, cache);
+                var oboDocCache = new LoadedOboDocCache((path, index) -> {
+                    return getBlobIdForPath(path, commitNavigator, index);
+                });
 
 
-                var counter = 0;
-                while(commitNavigator.hasParent()) {
+                var fsDocCache = new LoadedFsDocCache((path, index) -> {
+                    return getBlobIdForPath(path, commitNavigator, index);
+                });
 
-                    var parentCommitPeek = commitNavigator.getParentOfCurrentCommit().get();
-                    logger.info("----{}-------------------------------------------------------------------------------" , childCommitMetadata.commitHash());
-                    logger.info("Child commit: {} on {} by {} (msg: {})" , childCommitMetadata.commitHash(), childCommitMetadata.commitDate(), childCommitMetadata.committerUsername(), StringUtils.truncate(childCommitMetadata.commitMessage().replace("\n" , " " ), 200));
-                    logger.info("Parent commit: {} on {} by {}" , parentCommitPeek.commitHash(), parentCommitPeek.commitDate(), parentCommitPeek.committerUsername());
-                    logger.info("Changed files for this commit: {}" , childCommitMetadata.getChangedFiles());
-                    var filteredChangedFiles = getFilteredChangedFiles(childCommitMetadata);
-                    logger.info("Filtered changed files for this commit: {}" , filteredChangedFiles);
 
-                    var rootOntologyPath = commitNavigator.resolveFilePath(rootOntologyFile);
+                var differencesCalculator = new OntologiesDifferenceCalaculator(differenceCalculator, ontologyLoader);
 
-                    // The commit HAS to contain the root ontology
-                    logger.info("Root ontology document exists: {}" , Files.exists(rootOntologyPath));
+                var strategy = Map.of(
+                        PlanKind.NO_RELEVANT_CHANGE, new NoChangeExecutor(),
+                        PlanKind.ROOT_OBO_SINGLE_FILE, new OboSingleFileExecutor(ontologyManagerProvider),
+                        PlanKind.ROOT_OFN_SINGLE_FILE, new OfnSingleFileExecutor(ontologyManagerProvider),
+                        PlanKind.ROOT_OWL_SINGLE_FILE, new RootOwlSingleFileExecutor(ontologyLoader),
+                        PlanKind.MULTI_FILE_OR_IMPORTS, new MultiFileExecutor(ontologyLoader),
+                        PlanKind.OLDEST_COMMIT, new OldestCommitExecutor(ontologyLoader)
+                );
 
-                    if(filteredChangedFiles.isEmpty()) {
-                        // No actual changes in this commit.  We just need to advance the commit
-                        recordProcessingFinished(progressMonitor, childCommitMetadata);
-                        childCommitMetadata = commitNavigator.checkoutParent();
-                        childCommitOntologies = Optional.empty();
-                    } else if(isRootOntologyOboChangeOnly(commitNavigator, childCommitMetadata, rootOntologyFile)) {
-                        logger.info("OBO single file diff.  Doing optimized loading and change calculation" );
-                        // We can do a fast diff
-                        var childContent = Files.readString(rootOntologyPath, StandardCharsets.UTF_8);
-                        var parentCommitMetadata = commitNavigator.checkoutParent();
+                var fallback = new FallbackStrategy(ontologyLoader, differencesCalculator);
+
+                progressMonitor.processingHistoryStarted(repositoryUrl, commitNavigator.getNumberOfCommits());
+
+                while(window.hasBaselineCommit()) {
+                    var baseline = commitNavigator.getCommitAt(window.getBaselineIndex());
+                    var filtered = getFilteredChangedFiles(baseline);
+                    var plan = selectDiffPlan(commitNavigator, window, rootOntologyFile, filtered);
+
+                    recordProcessingStarted(progressMonitor, baseline);
+                    List<AxiomChange> axiomChanges;
+                    try {
                         try {
-                            boolean parentRootOntologyDocumentExists = Files.exists(rootOntologyPath);
-                            if(parentRootOntologyDocumentExists) {
-                                var parentContent = Files.readString(rootOntologyPath, StandardCharsets.UTF_8);
-                                var axiomChanges = computeAxiomChangesUsingFastOboDiff(parentContent, childContent);
-                                logAxiomChanges(axiomChanges);
-                                allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
-                                recordProcessingFinished(progressMonitor, childCommitMetadata);
-                                childCommitOntologies = Optional.empty();
-                                childCommitMetadata = parentCommitMetadata;
-                            } else {
-                                // Ontology comparison is with an empty ontology
-                                // We need to do the full on load and comparison with empty ontologies
-                                commitNavigator.checkoutChild();
-                                var childOntologies = loadOntologiesWithErrorHandling(rootOntologyPath, childCommitMetadata, false, cache);
-                                commitNavigator.checkoutParent();
-                                var axiomChanges = calculateAxiomChangesBetweenOntologies(childOntologies.get(), List.of());
-                                logAxiomChanges(axiomChanges);
-                                allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
-                                recordProcessingFinished(progressMonitor, childCommitMetadata);
-                                childCommitOntologies = Optional.of(List.of());
-                                childCommitMetadata = parentCommitMetadata;
-                            }
-
-                        } catch(Exception e) {
-                            logger.warn("Error when loading ontology" , e);
+                            var exec = strategy.get(plan.kind());
+                            var pair = exec.loadOntologies(plan, cache, window, oboDocCache, fsDocCache);
+                            axiomChanges = differencesCalculator.calculateAxiomChangesBetweenOntologies(pair.baseline(), pair.ancestor());
+                        } catch(SingleRootOntologyImportsMismatchException e) {
+                            logger.info("Imports declaration changed in commit.  Doing a full reload. Commit: {}" , baseline.commitHash());
+                            var pair = strategy.get(PlanKind.MULTI_FILE_OR_IMPORTS).loadOntologies(plan, cache, window, oboDocCache, fsDocCache);
+                            axiomChanges = differencesCalculator.calculateAxiomChangesBetweenOntologies(pair.baseline(), pair.ancestor());
                         }
-
-
-                    } else if(isRootOntologyChangeOnly(commitNavigator, childCommitMetadata, rootOntologyFile)) {
-                        CommitMetadata parentCommitMetadata = null;
-                        if(isOwlFunctionalSyntax(rootOntologyPath)) {
-                            try {
-                                logger.info("Functional Syntax single file diff.  Doing optimized loading and change calculation" );
-                                var childContent = Files.readString(rootOntologyPath, StandardCharsets.UTF_8);
-                                parentCommitMetadata = commitNavigator.checkoutParent();
-                                var parentContent = Files.readString(rootOntologyPath, StandardCharsets.UTF_8);
-                                var afterDoc = new FsParser(new StringReader(childContent)).parse();
-                                var beforeDoc = new FsParser(new StringReader(parentContent)).parse();
-                                var diff = MinimalOfnDiff.build(beforeDoc, afterDoc);
-                                var minimalParentDoc = new MinimalOfnDiff.Renderer().render(diff.before);
-                                var minimalChildDoc = new MinimalOfnDiff.Renderer().render(diff.after);
-
-                                try {
-                                    // Recall parent=before and child=after
-                                    var parentManager = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
-                                    forceFunctionalSyntaxParsing(parentManager);
-                                    var parentOnt = parentManager.loadOntologyFromOntologyDocument(new StringDocumentSource(minimalParentDoc));
-                                    try {
-                                        var childManager = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
-                                        forceFunctionalSyntaxParsing(childManager);
-                                        var childOnt = childManager.loadOntologyFromOntologyDocument(new StringDocumentSource(minimalChildDoc));
-                                        var axiomChanges = calculateAxiomChangesBetweenOntologies(List.of(childOnt), List.of(parentOnt));
-                                        logAxiomChanges(axiomChanges);
-                                        allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
-                                    } catch(Exception e) {
-                                        logger.info("Error when loading OFN child ontology document from commit: {}" , childCommitMetadata.commitHash());
-                                    }
-                                } catch(Exception e) {
-                                    logger.info("Error when loading parent ontology in functional syntax from commit: {}" , parentCommitMetadata.commitHash(), e);
-                                }
-                            } catch(Exception e) {
-                                logger.error("Error when loading ontology document" , e);
-                            }
-                        } else {
-                            logger.info("General OWL single file diff.  Doing optimized loading and change calculation" );
-                            childCommitOntologies = loadOntologiesWithErrorHandling(rootOntologyPath, childCommitMetadata, true, cache);
-                            parentCommitMetadata = commitNavigator.checkoutParent();
-                            var parentCommitOntologies = loadOntologiesWithErrorHandling(rootOntologyPath, parentCommitMetadata, true, cache);
-                            if(parentCommitOntologies.isPresent() && childCommitOntologies.isPresent()) {
-                                var axiomChanges = calculateAxiomChangesBetweenOntologies(
-                                        childCommitOntologies.get(), parentCommitOntologies.get());
-                                logAxiomChanges(axiomChanges);
-                                allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
-                            }
-
-                        }
-
-                        // Reset for next load
-                        childCommitOntologies = Optional.empty();
-                        if(parentCommitMetadata != null) {
-                            childCommitMetadata = parentCommitMetadata;
-                        }
-
-                    } else {
-                        if(childCommitOntologies.isEmpty()) {
-                            childCommitMetadata = commitNavigator.checkoutChild();
-                            logger.info("Child ontologies is empty.  Reloading children from commit: {}" , childCommitMetadata.commitHash());
-                            childCommitOntologies = loadOntologiesWithErrorHandling(ontologyFile, childCommitMetadata, false, cache);
-                        }
-                        // Load ontologies at the previous commit
-                        var parentCommitMetadata = commitNavigator.checkoutParent();
-                        var parentCommitOntologies = loadOntologiesWithErrorHandling(ontologyFile, parentCommitMetadata, false, cache);
-
-                        if(childCommitOntologies.isPresent() && parentCommitOntologies.isPresent()) {
-                            var axiomChanges = calculateAxiomChangesBetweenOntologies(
-                                    childCommitOntologies.get(), parentCommitOntologies.get());
-                            logAxiomChanges(axiomChanges);
-                            allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
-
-                            recordProcessingFinished(progressMonitor, childCommitMetadata);
-                            // Advance the window: parent becomes the new child
-                            childCommitOntologies = parentCommitOntologies;
-                            childCommitMetadata = parentCommitMetadata;
-                            recordProcessingStarted(progressMonitor, childCommitMetadata);
-                        } else {
-                            if(childCommitOntologies.isEmpty()) {
-                                logger.warn("Could not load ontologies in child commit {}" , childCommitMetadata.commitHash());
-                            }
-                            if(parentCommitOntologies.isEmpty()) {
-                                logger.warn("Could not load ontologies in parent commit {}" , parentCommitMetadata.commitHash());
-                            }
-
-                            // Ensure the in-flight commit gets a finished signal even if we skip differencing
-                            recordProcessingFinished(progressMonitor, childCommitMetadata);
-                            // Advance the window even if one side failed to load
-                            childCommitOntologies = parentCommitOntologies;
-                            childCommitMetadata = parentCommitMetadata;
-                            recordProcessingStarted(progressMonitor, childCommitMetadata);
-                        }
-
+                    } catch(Throwable e) {
+                        var rootOntologyPath = commitNavigator.resolveFilePath(rootOntologyFile);
+                        axiomChanges = fallback.fallback(rootOntologyPath, cache, window);
+                    } finally {
+                        recordProcessingFinished(progressMonitor, baseline);
                     }
 
+                    logAxiomChanges(axiomChanges);
+                    allCommitChanges.add(new OntologyCommitChange(axiomChanges, baseline, repositoryUrl));
 
-                    counter++;
-                    var elapsedTime = Duration.between(startTime, Instant.now());
-
-                    logger.info("Processed {} commits out of {} commits (~{} ms per commit)" , counter, commitNavigator.getCommitCount(), (elapsedTime.toMillis() / counter));
-
-                    if(elapsedTime.compareTo(maxAnalysisDuration) > 0) {
-                        logger.info(
-                                "Spent longer than {} minutes analyzing history at commit {}. Finishing." ,
-                                maxAnalysisDuration.toMinutes(),
-                                childCommitMetadata != null ? childCommitMetadata.commitHash() : "<unknown>"
-                        );
+                    if(Duration.between(startTime, Instant.now()).compareTo(maxAnalysisDuration) > 0) {
+                        logger.info("Time budget exceeded at {}" , baseline.commitHash());
                         break;
                     }
+
+                    window.advanceBaselineToAncestor();
                 }
 
-                // Handle the initial commit
-                if(childCommitOntologies.isPresent()) {
-                    // Finish the last started commit, if any
-                    var axiomChanges = calculateInitialOntologyChanges(childCommitOntologies.get());
-                    allCommitChanges.add(new OntologyCommitChange(axiomChanges, childCommitMetadata, repositoryUrl));
-                }
+
                 return ImmutableList.copyOf(allCommitChanges);
             } catch(Exception e) {
                 logger.error("An error occurred when analyzing the commit history" , e);
                 throw new OntologyComparisonException("Failed to analyze ontology commit history" , e);
             } finally {
                 // Ensure repo state is restored even on failure (best-effort)
-                safeResetWorkingDirectory(workingDirectory);
+                safeResetRepository(gitHubRepository);
+                progressMonitor.processingHistoryFinished();
             }
-    }
-
-    private boolean isOwlFunctionalSyntax(Path rootOntologyPath) {
-        return OfnFileDetector.isOwlFunctionalSyntax(rootOntologyPath);
-    }
-
-    private void recordProcessingStarted(@NotNull OntologyHistoryAnalyzerProgressMonitor progressMonitor, CommitMetadata commitMetadata) {
-        if(commitMetadata != null) {
-            progressMonitor.processingStarted(commitMetadata);
-        }
-    }
-
-    private void recordProcessingFinished(@NotNull OntologyHistoryAnalyzerProgressMonitor progressMonitor, CommitMetadata commitMetadata) {
-        if(commitMetadata != null) {
-            progressMonitor.processingFinished(commitMetadata);
-        }
-    }
-
-    private @NotNull List<AxiomChange> computeAxiomChangesUsingFastOboDiff(String parentContent, String childContent) throws OWLOntologyCreationException {
-        var diffOptions = FastOboDiff.DiffOptions.builder()
-                .stripIdenticalImports(true)
-                .build();
-        var differ = new FastOboDiff(diffOptions);
-        var diff = differ.diff(parentContent, childContent);
-        var parentMin = differ.renderBefore(diff);
-        var childMin = differ.renderAfter(diff);
-        var parentMan = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
-        var parentOnt = parentMan.loadOntologyFromOntologyDocument(new StringDocumentSource(parentMin));
-        var childMan = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
-        var childOnt = childMan.loadOntologyFromOntologyDocument(new StringDocumentSource(childMin));
-        return calculateAxiomChangesBetweenOntologies(List.of(childOnt), List.of(parentOnt));
-    }
-
-    private List<ChangedFile> getFilteredChangedFiles(CommitMetadata commitMetadata) {
-        return commitMetadata.getChangedFiles().stream()
-                .filter(f -> matchesFilters(f.path()))
-                .collect(Collectors.toList());
-    }
-
-    private boolean isRootOntologyOboChangeOnly(CommitNavigator commitNavigator,
-                                                CommitMetadata childCommitMetadata,
-                                                String rootOntologyRepoPath) {
-        var rootOntologyChange = isRootOntologyChangeOnly(commitNavigator, childCommitMetadata, rootOntologyRepoPath);
-        return rootOntologyChange && rootOntologyRepoPath.endsWith(".obo" );
-    }
-
-    private boolean isRootOntologyChangeOnly(CommitNavigator commitNavigator, CommitMetadata childCommitMetadata, String rootOntologyRepoPath) {
-        var rootOntologyPath = commitNavigator.resolveFilePath(rootOntologyRepoPath);
-        if(!Files.exists(rootOntologyPath)) {
-            return false;
-        }
-        var filteredChangedFiles = getFilteredChangedFiles(childCommitMetadata);
-        if(filteredChangedFiles.size() != 1) {
-            return false;
-        }
-        var changedFile = filteredChangedFiles.getFirst();
-        return changedFile.path().equals(rootOntologyRepoPath);
     }
 
     private boolean matchesFilters(String path) {
@@ -427,100 +293,502 @@ public class OntologyHistoryAnalyzer {
                 .anyMatch(matcher -> matcher.matches(Path.of(path)));
     }
 
-    /**
-     * Loads ontologies with centralized error handling and logging.
-     *
-     * @param rootOntology   the root ontology file to load
-     * @param commitMetadata metadata of the current commit for logging
-     * @param rootOnly
-     * @return Optional of loaded ontologies; empty if loading failed
-     */
-    private Optional<List<OWLOntology>> loadOntologiesWithErrorHandling(
-            @Nonnull Path rootOntology, @Nonnull CommitMetadata commitMetadata, boolean rootOnly, LoadedOntologyCache cache) {
-        if(!Files.exists(rootOntology)) {
-            logger.info("Root ontology document does not exist.  This means there are no ontologies in this commit. Commit: {}" , commitMetadata.commitHash());
-            // Simply no ontologies
-            return Optional.of(List.of());
+    private boolean isRootOntologyChangeOnly(CommitNavigator commitNavigator,
+                                             CommitMetadata baselineCommitMetadata,
+                                             String rootOntologyRepoPath) {
+        var rootOntologyPath = commitNavigator.resolveFilePath(rootOntologyRepoPath);
+        if(!Files.exists(rootOntologyPath)) {
+            return false;
         }
-        try {
-            if(rootOnly) {
-                var ontologies = ontologyLoader.loadOntologyWithoutImports(rootOntology, cache);
-                return Optional.of(ontologies);
-            } else {
-                var ontologies = ontologyLoader.loadOntologyWithImports(rootOntology, cache);
-                return Optional.of(ontologies);
+        var filteredChangedFiles = getFilteredChangedFiles(baselineCommitMetadata);
+        if(filteredChangedFiles.size() != 1) {
+            return false;
+        }
+        var changedFile = filteredChangedFiles.getFirst();
+        return changedFile.path().equals(rootOntologyRepoPath);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+
+    private DiffPlan selectDiffPlan(CommitNavigator nav,
+                                    CommitWindow window,
+                                    String rootRepoPath,
+                                    List<ChangedFile> filteredChangedFiles) {
+
+        var rootPath = nav.resolveFilePath(rootRepoPath);
+
+        var baselineCommit = nav.getCommitAt(window.getBaselineIndex());
+        if(!window.hasAncestorCommit()) {
+            return new DiffPlan(PlanKind.OLDEST_COMMIT, rootPath, rootRepoPath);
+        }
+
+        if(filteredChangedFiles.isEmpty()) {
+            return new DiffPlan(PlanKind.NO_RELEVANT_CHANGE, rootPath, rootRepoPath);
+        }
+
+        if(isRootOntologyChangeOnly(nav, baselineCommit, rootRepoPath) && Files.exists(rootPath)) {
+            if(isObo(rootRepoPath)) {
+                return new DiffPlan(PlanKind.ROOT_OBO_SINGLE_FILE, rootPath, rootRepoPath);
+            }
+            if(isOfn(rootPath)) {
+                return new DiffPlan(PlanKind.ROOT_OFN_SINGLE_FILE, rootPath, rootRepoPath);
+            }
+            return new DiffPlan(PlanKind.ROOT_OWL_SINGLE_FILE, rootPath, rootRepoPath);
+        }
+
+        return new DiffPlan(PlanKind.MULTI_FILE_OR_IMPORTS, rootPath, rootRepoPath);
+    }
+
+    private boolean isObo(String p) {
+        return p.toLowerCase(Locale.ROOT).endsWith(".obo" );
+    }
+
+    private boolean isOfn(Path p) {
+        return OfnFileDetector.isOwlFunctionalSyntax(p);
+    }
+
+    enum PlanKind {
+        NO_RELEVANT_CHANGE,          // filteredChangedFiles empty
+        ROOT_OBO_SINGLE_FILE,        // only root changed, *.obo
+        ROOT_OFN_SINGLE_FILE,        // only root changed, OFN
+        ROOT_OWL_SINGLE_FILE,        // only root changed, general OWL
+        MULTI_FILE_OR_IMPORTS,       // otherwise
+        OLDEST_COMMIT               // last step when no ancestor
+    }
+
+    private interface PlanExecutor {
+
+        LoadedPair loadOntologies(DiffPlan plan, LoadedOntologyCache cache, CommitWindow commitWindow, LoadedOboDocCache oboDocCache, LoadedFsDocCache fsDocCache) throws Exception;
+    }
+
+    private record OntologyPair(OWLOntology baseline, OWLOntology parent) {
+
+    }
+
+    private static class OntologiesDifferenceCalaculator {
+
+        private final OntologiesDifferenceCalculator differenceCalculator;
+
+        private final OntologyLoader ontologyLoader;
+
+        private OntologiesDifferenceCalaculator(OntologiesDifferenceCalculator differenceCalculator, OntologyLoader ontologyLoader) {
+            this.differenceCalculator = differenceCalculator;
+            this.ontologyLoader = ontologyLoader;
+        }
+
+        /**
+         * Calculates axiom changes between current and previous commit ontologies
+         *
+         * @param baselineCommitOntologies ontologies from the baseline commit
+         * @param parentCommitOntologies   ontologies from the ancestor commit
+         * @return list of axiom changes between commits
+         */
+        @Nonnull
+        private List<AxiomChange> calculateAxiomChangesBetweenOntologies(
+                @Nonnull List<OWLOntology> baselineCommitOntologies,
+                @Nonnull List<OWLOntology> parentCommitOntologies) {
+
+            var baselinesByIri = new HashMap<IRI, OWLOntology>();
+            var ancestorsByIri = new HashMap<IRI, OWLOntology>();
+
+            baselineCommitOntologies.forEach(ont -> baselinesByIri.put(ontologyKey(ont), ont));
+            parentCommitOntologies.forEach(ont -> ancestorsByIri.put(ontologyKey(ont), ont));
+
+            var pairs = new ArrayList<OntologyPair>();
+
+            // 1) Matched pairs (remove matched keys from both maps)
+            var matchedKeys = new HashSet<>(baselinesByIri.keySet());
+            matchedKeys.retainAll(ancestorsByIri.keySet());
+            for(var iri : matchedKeys) {
+                pairs.add(new OntologyPair(baselinesByIri.remove(iri), ancestorsByIri.remove(iri)));
             }
 
-        } catch (Exception e) {
-            logger.warn("Failed to load ontology for commit {} at {}: {}" ,
-                    commitMetadata.commitHash(), rootOntology, e.getMessage(), e);
-            return Optional.empty();
+            // 2) Parent-only → removed; baseline-only → added
+            ancestorsByIri.values().forEach(p -> pairs.add(new OntologyPair(ontologyLoader.getEmptyOntology(), p)));
+            baselinesByIri.values().forEach(c -> pairs.add(new OntologyPair(c, ontologyLoader.getEmptyOntology())));
+
+            return pairs.stream()
+                    .flatMap(pair -> differenceCalculator
+                            .calculateAxiomChanges(
+                                    pair.baseline,
+                                    pair.parent,
+                                    // Prefer baseline’s real ID if not anonymous; else use ancestor’s; else synthesize
+                                    effectiveOntologyId(pair.baseline, pair.parent))
+                            .stream())
+                    .collect(ImmutableList.toImmutableList());
         }
     }
 
-    /**
-     * Calculates axiom changes between current and previous commit ontologies
-     *
-     * @param childCommitOntologies  ontologies from the child commit
-     * @param parentCommitOntologies ontologies from the parent commit
-     * @return list of axiom changes between commits
-     */
-    @Nonnull
-    private List<AxiomChange> calculateAxiomChangesBetweenOntologies(
-            @Nonnull List<OWLOntology> childCommitOntologies,
-            @Nonnull List<OWLOntology> parentCommitOntologies) {
+    private static class FallbackStrategy {
 
-        var childrenByIri = new HashMap<IRI, OWLOntology>();
-        var parentsByIri = new HashMap<IRI, OWLOntology>();
+        private final OntologyLoader loader;
 
-        childCommitOntologies.forEach(ont -> childrenByIri.put(ontologyKey(ont), ont));
-        parentCommitOntologies.forEach(ont -> parentsByIri.put(ontologyKey(ont), ont));
+        private final OntologiesDifferenceCalaculator differenceCalaculator;
 
-        var pairs = new ArrayList<OntologyPair>();
-
-        // 1) Matched pairs (remove matched keys from both maps)
-        var matchedKeys = new HashSet<>(childrenByIri.keySet());
-        matchedKeys.retainAll(parentsByIri.keySet());
-        for(var iri : matchedKeys) {
-            pairs.add(new OntologyPair(childrenByIri.remove(iri), parentsByIri.remove(iri)));
+        public FallbackStrategy(OntologyLoader loader, OntologiesDifferenceCalaculator differenceCalaculator) {
+            this.loader = loader;
+            this.differenceCalaculator = differenceCalaculator;
         }
 
-        // 2) Parent-only → removed; Child-only → added
-        parentsByIri.values().forEach(p -> pairs.add(new OntologyPair(ontologyLoader.getEmptyOntology(), p)));
-        childrenByIri.values().forEach(c -> pairs.add(new OntologyPair(c, ontologyLoader.getEmptyOntology())));
+        private List<AxiomChange> fallback(
+                Path rootOntologyPath,
+                LoadedOntologyCache cache,
+                CommitWindow commitWindow) {
 
-        return pairs.stream()
-                .flatMap(pair -> differenceCalculator
-                        .calculateAxiomChanges(
-                                pair.child,
-                                pair.parent,
-                                // Prefer child’s real ID if not anonymous; else use parent’s; else synthesize
-                                effectiveOntologyId(pair.child, pair.parent))
-                        .stream())
-                .collect(ImmutableList.toImmutableList());
+            try {
+                // We are either unable to load the current baseline or we
+                // are unable to load the current ancestor.
+                // Back track to the last loaded commit - this may be the current baseline
+                commitWindow.setBaselineToLastLoadedCommit();
+                while(commitWindow.hasBaselineCommit()) {
+                    // Ensure we are at the baseline commit
+                    try {
+                        var baselineCommit = commitWindow.checkoutBaseline();
+                        logger.info("Fallingback to baseline commit {}" , baselineCommit.commitHash());
+                        var baselineOntologies = loader.loadOntologyWithImports(rootOntologyPath, cache);
+
+                        while(commitWindow.hasAncestorCommit()) {
+                            try {
+                                var ancestorCommit = commitWindow.checkoutAncestor();
+                                var ancestorOntologies = loader.loadOntologyWithImports(rootOntologyPath, cache);
+                                return differenceCalaculator.calculateAxiomChangesBetweenOntologies(
+                                        baselineOntologies, ancestorOntologies);
+                            } catch(Throwable e) {
+                                logger.warn("Could not process ancestor commit: {} (baseline commit: {})" ,
+                                        commitWindow.getAncestorCommitHash(),
+                                        baselineCommit.commitHash());
+                                commitWindow.incrementAncestorOffset();
+                                logger.info("Advanced ancestor commit to {}" , commitWindow.getAncestorIndex());
+                            }
+                        }
+                    } catch(Throwable e) {
+                        // Could not process baseline commit
+                        logger.error("Could not process baseline commit: {}.  Advancing baseline." ,
+                                commitWindow.getBaselineCommitHash());
+                        commitWindow.advanceBaselineToAncestor();
+                    }
+                }
+            } catch(Throwable t) {
+                logger.error("Could not find a loadable commit pair." );
+            }
+            return List.of();
+        }
     }
 
-    private record OntologyPair(OWLOntology child, OWLOntology parent) {
+    record DiffPlan(
+            PlanKind kind,
+            Path rootOntologyPath,
+            String rootRepoPath
+    ) {
 
     }
 
-    /**
-     * Calculates axiom changes for the initial commit (compared to empty ontology)
-     *
-     * @param ontologies ontologies from the initial commit
-     * @return list of axiom changes for initial commit
-     */
-    @Nonnull
-    private List<AxiomChange> calculateInitialOntologyChanges(@Nonnull List<OWLOntology> ontologies) {
+    private record LoadedPair(List<OWLOntology> baseline, List<OWLOntology> ancestor) {
 
-        var emptyOntology = ontologyLoader.getEmptyOntology();
-        return ontologies.stream()
-                .flatMap(ontology ->
-                        differenceCalculator
-                                .calculateAxiomChanges(ontology, emptyOntology, ontology.getOntologyID())
-                                .stream())
-                .collect(ImmutableList.toImmutableList());
     }
 
+    private static class OfnSingleFileExecutor implements PlanExecutor {
 
+        private final OntologyManagerProvider ontologyManagerProvider;
+
+        public OfnSingleFileExecutor(OntologyManagerProvider ontologyManagerProvider) {
+            this.ontologyManagerProvider = ontologyManagerProvider;
+        }
+
+        @Override
+        public LoadedPair loadOntologies(DiffPlan plan, LoadedOntologyCache cache, CommitWindow commitWindow, LoadedOboDocCache oboDocCache, LoadedFsDocCache fsDocCache) throws Exception {
+            try {
+                logger.info("Functional Syntax single file diff.  Doing optimized loading and change calculation for commit: {}" , commitWindow.getBaselineCommitHash());
+
+                var rootOntologyPath = plan.rootOntologyPath();
+
+                var docSource = new FileDocumentSource(rootOntologyPath.toFile());
+
+                var afterDoc = fsDocCache.get(docSource, commitWindow.getBaselineIndex()).orElseGet(() -> {
+                    try {
+                        var baselineContent = commitWindow.getContentAtBaseline(plan.rootRepoPath());
+                        logger.info("Loaded chars {} from blob at path: {}", baselineContent.length(), plan.rootRepoPath());
+                        var doc = new FsParser(new StringReader(baselineContent)).parse();
+                        fsDocCache.put(docSource, doc, commitWindow.getBaselineIndex());
+                        return doc;
+                    } catch(Throwable e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                var beforeDoc = fsDocCache.get(docSource, commitWindow.getAncestorIndex()).orElseGet(() -> {
+                    try {
+                        var parentContent = commitWindow.getContentAtAncestor(plan.rootRepoPath());
+                        logger.info("Loaded chars {} from blob at path: {}", parentContent.length(), plan.rootRepoPath());
+                        var doc = new FsParser(new StringReader(parentContent)).parse();
+                        fsDocCache.put(docSource, doc, commitWindow.getAncestorIndex());
+                        return doc;
+                    } catch(Throwable e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                var diff = MinimalOfnDiff.build(beforeDoc, afterDoc);
+
+                var minimalParentDoc = new MinimalOfnDiff.Renderer().render(diff.before);
+                var minimalbaselineDoc = new MinimalOfnDiff.Renderer().render(diff.after);
+
+                try {
+                    var baselineManager = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
+                    forceFunctionalSyntaxParsing(baselineManager);
+                    var baselineOnt = baselineManager.loadOntologyFromOntologyDocument(new StringDocumentSource(minimalbaselineDoc));
+
+                    try {
+
+                        var parentManager = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
+                        forceFunctionalSyntaxParsing(parentManager);
+                        var parentOnt = parentManager.loadOntologyFromOntologyDocument(new StringDocumentSource(minimalParentDoc));
+
+                        if(!baselineOnt.getImportsDeclarations().equals(parentOnt.getImportsDeclarations())) {
+                            throw new SingleRootOntologyImportsMismatchException();
+                        }
+
+                        return new LoadedPair(List.of(baselineOnt), List.of(parentOnt));
+                    } catch(Exception e) {
+                        logger.info("Error when minimal-diff baseline ontology: Commit: {}" , commitWindow.getBaselineCommitHash());
+                        throw e;
+                    }
+                } catch(Exception e) {
+                    logger.info("Error when loading minimal diff ancestor ontology. Commit: {}" , commitWindow.getAncestorCommitHash(), e);
+                    throw e;
+                }
+            } catch(Throwable e) {
+                logger.error("Error when loading ontology document: {}" , e.getMessage());
+                throw e;
+            }
+        }
+    }
+
+    private static class OboSingleFileExecutor implements OntologyHistoryAnalyzer.PlanExecutor {
+
+        private final OntologyManagerProvider ontologyManagerProvider;
+
+        public OboSingleFileExecutor(OntologyManagerProvider ontologyManagerProvider) {
+            this.ontologyManagerProvider = ontologyManagerProvider;
+        }
+
+        @Override
+        public LoadedPair loadOntologies(DiffPlan plan, LoadedOntologyCache cache, CommitWindow commitWindow, LoadedOboDocCache oboDocCache, LoadedFsDocCache fsDocCache) throws Exception {
+            commitWindow.validateAncestorIsParent();
+            var rootOntologyPath = plan.rootOntologyPath();
+            var diffOptions = FastOboDiff.DiffOptions.builder()
+                    .stripIdenticalImports(true)
+                    .build();
+            var differ = new FastOboDiff(diffOptions);
+
+            var documentSource = new FileDocumentSource(rootOntologyPath.toFile());
+            var afterDoc = oboDocCache.get(documentSource, commitWindow.getBaselineIndex()).orElseGet(() -> {
+                var rootRepoPath = plan.rootRepoPath();
+                var baselineContent = commitWindow.getContentAtBaseline(rootRepoPath);
+                var parsed = differ.parse(baselineContent);
+                oboDocCache.put(documentSource, parsed, commitWindow.getBaselineIndex());
+                return parsed;
+            });
+            var beforeDoc = oboDocCache.get(documentSource, commitWindow.getAncestorIndex()).orElseGet(() -> {
+                var rootPath = plan.rootRepoPath();
+                var ancestorContent = commitWindow.getContentAtAncestor(rootPath);
+                var parsed = differ.parse(ancestorContent);
+                oboDocCache.put(documentSource, parsed, commitWindow.getAncestorIndex());
+                return parsed;
+            });
+
+            var diff = differ.diff(beforeDoc, afterDoc);
+            var parentMin = differ.renderBefore(diff);
+            var baselineMin = differ.renderAfter(diff);
+            var parentMan = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
+            var parentOnt = parentMan.loadOntologyFromOntologyDocument(new StringDocumentSource(parentMin));
+            var baselineMan = ontologyManagerProvider.getOntologyManagerWithIgnoredImports();
+            var baselineOnt = baselineMan.loadOntologyFromOntologyDocument(new StringDocumentSource(baselineMin));
+            if(!baselineOnt.getImportsDeclarations().equals(parentOnt.getImportsDeclarations())) {
+                throw new SingleRootOntologyImportsMismatchException();
+            }
+            return new OntologyHistoryAnalyzer.LoadedPair(List.of(baselineOnt), List.of(parentOnt));
+        }
+    }
+
+    private static class RootOwlSingleFileExecutor implements PlanExecutor {
+
+        private final OntologyLoader loader;
+
+        public RootOwlSingleFileExecutor(OntologyLoader loader) {
+            this.loader = loader;
+        }
+
+        @Override
+        public LoadedPair loadOntologies(DiffPlan plan, LoadedOntologyCache cache, CommitWindow commitWindow, LoadedOboDocCache oboDocCache, LoadedFsDocCache fsDocCache) throws Exception {
+            commitWindow.validateAncestorIsParent();
+            var rootOntologyPath = plan.rootOntologyPath();
+            commitWindow.checkoutBaseline();
+            logger.info("General OWL single file diff.  Doing optimized loading and change calculation" );
+            var baselineOnts = loader.loadOntologyWithoutImports(rootOntologyPath, cache);
+            commitWindow.checkoutAncestor();
+            var parentOnts = loader.loadOntologyWithoutImports(rootOntologyPath, cache);
+            if(!getOwlImportsDeclarations(baselineOnts).equals(getOwlImportsDeclarations(parentOnts))) {
+                throw new SingleRootOntologyImportsMismatchException();
+            }
+            return new LoadedPair(baselineOnts, parentOnts);
+        }
+    }
+
+    private static class MultiFileExecutor implements PlanExecutor {
+
+        private final OntologyLoader loader;
+
+        private MultiFileExecutor(OntologyLoader loader) {
+            this.loader = loader;
+        }
+
+        @Override
+        public LoadedPair loadOntologies(DiffPlan plan, LoadedOntologyCache cache, CommitWindow commitWindow, LoadedOboDocCache oboDocCache, LoadedFsDocCache fsDocCache) throws Exception {
+            var rootOntologyPath = plan.rootOntologyPath();
+            commitWindow.checkoutBaseline();
+            var baselineCommitOntologies = loader.loadOntologyWithImports(rootOntologyPath, cache);
+            // Load ontologies at the previous commit
+            commitWindow.checkoutAncestor();
+            var parentCommitOntologies = loader.loadOntologyWithImports(rootOntologyPath, cache);
+            return new LoadedPair(baselineCommitOntologies, parentCommitOntologies);
+        }
+    }
+
+    private static class OldestCommitExecutor implements PlanExecutor {
+
+        private final OntologyLoader loader;
+
+        private OldestCommitExecutor(OntologyLoader loader) {
+            this.loader = loader;
+        }
+
+        @Override
+        public LoadedPair loadOntologies(DiffPlan plan, LoadedOntologyCache cache, CommitWindow commitWindow, LoadedOboDocCache oboDocCache, LoadedFsDocCache fsDocCache) throws Exception {
+            commitWindow.checkoutBaseline();
+            var rootOntologyPath = plan.rootOntologyPath();
+            commitWindow.getBaselineCommitMetadata();
+            var baselineCommitOntologies = loader.loadOntologyWithImports(rootOntologyPath, cache);
+            var emptyOntologiesList = List.<OWLOntology>of();
+            return new LoadedPair(baselineCommitOntologies, emptyOntologiesList);
+        }
+    }
+
+    private static class NoChangeExecutor implements PlanExecutor {
+
+        @Override
+        public LoadedPair loadOntologies(DiffPlan plan, LoadedOntologyCache cache, CommitWindow commitWindow, LoadedOboDocCache oboDocCache, LoadedFsDocCache fsDocCache) throws Exception {
+            return new LoadedPair(List.of(), List.of());
+        }
+    }
+
+    private static final class CommitWindow {
+
+        private final UncheckedCommitNavigator nav;
+
+        private int baselineIndex = 0;
+
+        private int ancestorOffset = 1;
+
+        private int lastLoadedIndex = -1;
+
+        CommitWindow(CommitNavigator nav) {
+            this.nav = new UncheckedCommitNavigator(nav);
+        }
+
+        public boolean hasBaselineCommit() {
+            return baselineIndex < nav.getCommitCount();
+        }
+
+        public boolean hasAncestorCommit() {
+            return getAncestorIndex() < nav.getCommitCount();
+        }
+
+        public void incrementAncestorOffset() {
+            ancestorOffset++;
+        }
+
+        public int getBaselineIndex() {
+            return baselineIndex;
+        }
+
+        public void advanceBaselineToAncestor() {
+            baselineIndex = baselineIndex + ancestorOffset;
+            ancestorOffset = 1;
+            lastLoadedIndex = baselineIndex;
+        }
+
+        public int getLastLoadedIndex() {
+            return lastLoadedIndex;
+        }
+
+        public int getAncestorIndex() {
+            return baselineIndex + ancestorOffset;
+        }
+
+        public CommitMetadata checkoutBaseline() {
+            return checkoutAt(baselineIndex);
+        }
+
+        public CommitMetadata checkoutAncestor() {
+            int ancestorIndex = getAncestorIndex();
+            return checkoutAt(ancestorIndex);
+        }
+
+        public InputStream getInputStreamForBaseline(String path) {
+            return nav.getInputStreamAt(getBaselineIndex(), path);
+        }
+
+        public InputStream getInputStreamForAncestor(String path) {
+            return nav.getInputStreamAt(getAncestorIndex(), path);
+        }
+
+        private CommitMetadata checkoutAt(int commitIndex) {
+            long t0 = System.currentTimeMillis();
+            var metadata = nav.checkoutCommitAt(commitIndex);
+            long t1 = System.currentTimeMillis();
+            logger.info("Checked out commit at index {} in {}ms" , commitIndex, t1 - t0);
+            return metadata;
+        }
+
+        public void validateAncestorIsParent() {
+            if(ancestorOffset != 1) {
+                throw new RuntimeException("Expected ancestor commit to be the parent of the baseline commit" );
+            }
+        }
+
+        public String getBaselineCommitHash() {
+            return nav.getCommitAt(baselineIndex).commitHash();
+        }
+
+        public String getAncestorCommitHash() {
+            if(hasAncestorCommit()) {
+                return nav.getCommitAt(getAncestorIndex()).commitHash();
+            }
+            return "";
+        }
+
+        public CommitMetadata getBaselineCommitMetadata() {
+            return nav.getCommitAt(baselineIndex);
+        }
+
+        public void setBaselineToLastLoadedCommit() {
+            baselineIndex = lastLoadedIndex;
+        }
+
+        public String getContentAtAncestor(String path) {
+            try {
+                return new String(getInputStreamForAncestor(path).readAllBytes(), StandardCharsets.UTF_8);
+            } catch(IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        public String getContentAtBaseline(String rootRepoPath) {
+            try {
+                return new String(getInputStreamForBaseline(rootRepoPath).readAllBytes(), StandardCharsets.UTF_8);
+            } catch(IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
 }

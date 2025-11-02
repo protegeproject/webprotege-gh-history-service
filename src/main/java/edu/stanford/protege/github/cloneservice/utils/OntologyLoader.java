@@ -98,18 +98,10 @@ public class OntologyLoader {
             }
 
             logger.info("Loading root ontology from: {}", rootOntology);
-            var ontology = ontologyManager.loadOntologyFromOntologyDocument(ontologyFile);
-
-            // Log information about imports
-            var importedOntologies = Sets.<OWLOntology>newHashSet();
-            importedOntologies.addAll(ontologyManager.getOntologies());
-            logger.info("Successfully loaded ontology with {} imports", importedOntologies.size());
-
-            // Get all ontologies including imports
-            return ImmutableList.<OWLOntology>builder()
-                    .add(ontology)
-                    .addAll(importedOntologies)
-                    .build();
+            ontologyManager.loadOntologyFromOntologyDocument(ontologyFile);
+            var ontologies = ontologyManager.getOntologies();
+            logger.info("Successfully loaded {} ontologies including imports", ontologies.size());
+            return List.copyOf(ontologies);
         } catch (IOException | OWLOntologyCreationException e) {
             throw new OntologyLoadException("Failed to load ontology from: " + rootOntology, e);
         }
