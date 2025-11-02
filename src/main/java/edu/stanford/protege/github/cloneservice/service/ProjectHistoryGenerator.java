@@ -14,6 +14,7 @@ import edu.stanford.protege.webprotege.common.ProjectId;
 import edu.stanford.protege.webprotege.common.UserId;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import javax.annotation.Nonnull;
@@ -75,6 +76,7 @@ public class ProjectHistoryGenerator {
     private Path getLocalCloneDirectory(ProjectId projectId, BranchCoordinates branchCoordinates) throws IOException {
         var tempDir = Paths.get(System.getProperty("java.io.tmpdir"));
         var subDir = Path.of("github-repos", projectId.value(), branchCoordinates.ownerName(), branchCoordinates.repositoryName());
+        Files.createDirectories(subDir);
         return tempDir.resolve(subDir);
     }
 
