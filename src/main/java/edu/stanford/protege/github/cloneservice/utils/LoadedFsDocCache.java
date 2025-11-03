@@ -54,10 +54,10 @@ public class LoadedFsDocCache {
         Optional<FsParser.FsDoc> doc = Optional.ofNullable(cache.get(docIri, blobId.get()));
         if(doc.isPresent()) {
             cacheHits++;
-            logger.debug("Cache hit for FS doc load request. [cacheHits={}, documentSource={}]", cacheHits, documentSource);
+            logger.debug("Cache hit for FS doc load request. [cacheHits={}, documentSource={}]", cacheHits, documentSource.getDocumentIRI());
         }
         else {
-            logger.debug("Cache miss for FS doc load request. [documentSource={}]", documentSource);
+            logger.debug("Cache miss for FS doc load request. [documentSource={}]", documentSource.getDocumentIRI());
         }
         return doc;
     }

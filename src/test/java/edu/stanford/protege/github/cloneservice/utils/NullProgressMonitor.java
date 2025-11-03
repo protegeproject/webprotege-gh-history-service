@@ -2,6 +2,8 @@ package edu.stanford.protege.github.cloneservice.utils;
 
 import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 
+import java.util.List;
+
 public class NullProgressMonitor implements OntologyHistoryAnalyzerProgressMonitor {
 
     @Override
@@ -10,7 +12,7 @@ public class NullProgressMonitor implements OntologyHistoryAnalyzerProgressMonit
     }
 
     @Override
-    public void processingCommitStarted(CommitMetadata commitMetadata) {
+    public void processingCommitStarted(CommitMetadata commitMetadata, List<String> changedFilePaths) {
 
     }
 

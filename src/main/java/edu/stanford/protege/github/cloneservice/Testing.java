@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.List;
 
 public class Testing {
 
@@ -35,10 +36,10 @@ public class Testing {
         org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger("probe");
         log.info("SLF4J test");
 
-        String owner = "obophenotype";
-        String repoName = "human-phenotype-ontology";
-        String acronym = "hp";
-        String extension = ".owl";
+        String owner = "monarch-initiative";
+        String repoName = "mondo";
+        String acronym = "mondo";
+        String extension = ".obo";
         Path workingDirectory = Path.of("/tmp/github-repos/9dd84be1-1701-4f12-9fe5-4bd5dc124d2a/" + owner + "/" + repoName);
         RepositoryConfig config = RepositoryConfig.builder(new BranchCoordinates(
                         owner,
@@ -71,10 +72,10 @@ public class Testing {
             private long startTime, endTime;
 
             @Override
-            public void processingCommitStarted(CommitMetadata commitMetadata) {
+            public void processingCommitStarted(CommitMetadata commitMetadata, List<String> changedFilePaths) {
                 counter++;
                 startTime = System.currentTimeMillis();
-                logger.info("Processing commit {}...", commitMetadata.commitHash());
+                logger.info("Processing commit {} [changed files={}]", commitMetadata.commitHash(), changedFilePaths);
             }
 
             @Override

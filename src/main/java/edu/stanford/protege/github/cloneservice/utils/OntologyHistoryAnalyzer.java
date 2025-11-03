@@ -109,9 +109,10 @@ public class OntologyHistoryAnalyzer {
             return Optional.empty();
         }
     }
-    private void recordProcessingStarted(@NotNull OntologyHistoryAnalyzerProgressMonitor progressMonitor, CommitMetadata commitMetadata) {
+    private void recordProcessingStarted(@NotNull OntologyHistoryAnalyzerProgressMonitor progressMonitor, CommitMetadata commitMetadata, List<ChangedFile> changedFiles) {
         if(commitMetadata != null) {
-            progressMonitor.processingCommitStarted(commitMetadata);
+            var files = changedFiles.stream().map(ChangedFile::path).toList();
+            progressMonitor.processingCommitStarted(commitMetadata, files);
         }
     }
 
@@ -200,7 +201,7 @@ public class OntologyHistoryAnalyzer {
                     var filtered = getFilteredChangedFiles(baseline);
                     var plan = selectDiffPlan(commitNavigator, window, rootOntologyFile, filtered);
 
-                    recordProcessingStarted(progressMonitor, baseline);
+                    recordProcessingStarted(progressMonitor, baseline, filtered);
                     List<AxiomChange> axiomChanges;
                     try {
                         try {
@@ -213,6 +214,7 @@ public class OntologyHistoryAnalyzer {
                             axiomChanges = differencesCalculator.calculateAxiomChangesBetweenOntologies(pair.baseline(), pair.ancestor());
                         }
                     } catch(Throwable e) {
+                        logger.info("Could not load ontology changes [baselineCommit={}]", baseline.commitHash(), e);
                         var rootOntologyPath = commitNavigator.resolveFilePath(rootOntologyFile);
                         axiomChanges = fallback.fallback(rootOntologyPath, cache, window);
                     } finally {

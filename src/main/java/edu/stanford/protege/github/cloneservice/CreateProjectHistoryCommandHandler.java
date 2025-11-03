@@ -17,7 +17,7 @@ import edu.stanford.protege.webprotege.ipc.CommandHandler;
 import edu.stanford.protege.webprotege.ipc.EventDispatcher;
 import edu.stanford.protege.webprotege.ipc.ExecutionContext;
 import edu.stanford.protege.webprotege.ipc.WebProtegeHandler;
-import java.io.File;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -188,7 +188,7 @@ public class CreateProjectHistoryCommandHandler
                             }
 
                             @Override
-                            public void processingCommitStarted(CommitMetadata commitMetadata) {
+                            public void processingCommitStarted(CommitMetadata commitMetadata, List<String> changedFilePaths) {
                                 eventDispatcher.dispatchEvent(new CommitProcessingStartedEvent(EventId.generate(), operationId, projectId, commitMetadata.commitHash()));
                             }
 
