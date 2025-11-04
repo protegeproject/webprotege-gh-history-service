@@ -6,6 +6,7 @@ import edu.stanford.protege.webprotege.change.OntologyChange;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import javax.annotation.Nonnull;
 
 /**
@@ -15,11 +16,12 @@ import javax.annotation.Nonnull;
 public record OntologyCommitChange(
         @Nonnull List<OntologyChange> axiomChanges,
         @Nonnull CommitMetadata baselineCommit,
-        @Nonnull String ancestorCommitId) {
+        @Nonnull Optional<CommitMetadata> ancestorCommit) {
 
     public OntologyCommitChange {
         Objects.requireNonNull(axiomChanges, "axiomChanges cannot be null");
         Objects.requireNonNull(baselineCommit, "baselineCommit cannot be null");
+        Objects.requireNonNull(ancestorCommit, "ancestorCommit cannot be null");
         // Create defensive copy to prevent external mutation
         axiomChanges = ImmutableList.copyOf(axiomChanges);
     }

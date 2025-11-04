@@ -214,17 +214,21 @@ public class OntologyHistoryAnalyzer {
                             var pair = strategy.get(PlanKind.MULTI_FILE_OR_IMPORTS).loadOntologies(plan, cache, window, oboDocCache, fsDocCache);
                             axiomChanges = differencesCalculator.calculateAxiomChangesBetweenOntologies(pair.baseline(), pair.ancestor());
                         }
+                        var ancestor = window.getAncestorCommit();
+                        ontologyChangesHandler.handleOntologyChanges(baseline, ancestor, axiomChanges);
                     } catch(Throwable e) {
                         logger.info("Could not load ontology changes [baselineCommit={}]", baseline.commitHash(), e);
                         var rootOntologyPath = commitNavigator.resolveFilePath(rootOntologyFile);
                         axiomChanges = fallback.fallback(rootOntologyPath, cache, window);
+                        var ancestor = window.getAncestorCommit();
+                        ontologyChangesHandler.handleOntologyChanges(baseline, ancestor, axiomChanges);
                     } finally {
                         recordProcessingFinished(progressMonitor, baseline);
                     }
 
                     logAxiomChanges(axiomChanges);
 
-                    allCommitChanges.add(new OntologyCommitChange(axiomChanges, baseline, window.getAncestorCommitHash()));
+                    allCommitChanges.add(new OntologyCommitChange(axiomChanges, baseline, window.getAncestorCommit()));
 
                     if(Duration.between(startTime, Instant.now()).compareTo(maxAnalysisDuration) > 0) {
                         logger.info("Time budget exceeded at {}" , baseline.commitHash());

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 final class CommitWindow {
 
@@ -125,6 +126,15 @@ final class CommitWindow {
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    public Optional<CommitMetadata> getAncestorCommit() {
+        if(hasAncestorCommit()) {
+            return Optional.of(nav.getCommitAt(getAncestorIndex()));
+        }
+        else {
+            return Optional.empty();
         }
     }
 }

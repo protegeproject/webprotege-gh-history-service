@@ -4,7 +4,9 @@ import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 import edu.stanford.protege.webprotege.change.OntologyChange;
 
 import java.util.List;
+import java.util.Optional;
 
+/** @noinspection OptionalUsedAsFieldOrParameterType*/
 public interface OntologyChangesHandler {
 
     /**
@@ -17,6 +19,6 @@ public interface OntologyChangesHandler {
      *                        between the ancestor commit and the basline commit.
      */
     void handleOntologyChanges(CommitMetadata baselineCommit,
-                               CommitMetadata ancestorCommit,
+                               Optional<CommitMetadata> ancestorCommit,
                                List<OntologyChange> ontologyChanges);
 }

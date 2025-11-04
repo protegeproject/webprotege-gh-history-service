@@ -12,6 +12,8 @@ import edu.stanford.protege.webprotege.revision.Revision;
 import edu.stanford.protege.webprotege.revision.RevisionNumber;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -206,7 +208,7 @@ class ProjectHistoryConverterTest {
         lenient().when(commitMetadata.commitDate()).thenReturn(Instant.now());
 
         var axiomChanges = List.<OntologyChange>of(new AddAxiomChange(ontologyId, axiom1));
-        return new OntologyCommitChange(axiomChanges, commitMetadata, "https://github.com/test/repo");
+        return new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
     }
 
     private OntologyCommitChange createRealCommitChange(String username, String commitHash) {
@@ -217,6 +219,6 @@ class ProjectHistoryConverterTest {
         when(commitMetadata.commitDate()).thenReturn(Instant.now());
 
         var axiomChanges = List.<OntologyChange>of(new AddAxiomChange(ontologyId, axiom1));
-        return new OntologyCommitChange(axiomChanges, commitMetadata, "https://github.com/test/repo");
+        return new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
     }
 }

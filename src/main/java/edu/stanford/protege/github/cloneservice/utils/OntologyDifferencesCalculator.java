@@ -28,14 +28,14 @@ public class OntologyDifferencesCalculator {
         parentImports
                 .forEach(parentImport -> {
                     if(!childImports.contains(parentImport)) {
-                        logger.info("Found import declaration removed: {}", parentImport);
+                        logger.debug("Found import declaration removed: {}", parentImport);
                         ontologyChanges.add(new RemoveImportChange(ontologyId, parentImport));
                     }
                 });
         childImports
                 .forEach(childImport -> {
                     if(!parentImports.contains(childImport)) {
-                        logger.info("Found import declaration added: {}", childImport);
+                        logger.debug("Found import declaration added: {}", childImport);
                         ontologyChanges.add(new AddImportChange(ontologyId, childImport));
                     }
                 });
@@ -44,6 +44,10 @@ public class OntologyDifferencesCalculator {
     private static void calculateOntologyAnnotationChanges(@NotNull OWLOntology childCommitOntology, @NotNull OWLOntology parentCommitOntology, @NotNull OWLOntologyID ontologyId, ArrayList<OntologyChange> ontologyChanges) {
         var parentAnnotations = parentCommitOntology.getAnnotations();
         var childAnnotations = childCommitOntology.getAnnotations();
+
+        if(!parentAnnotations.equals(childAnnotations)) {
+            logger.debug("Found ontology annotation changes");
+        }
 
         parentAnnotations
                 .forEach(parentOntologyAnnotation -> {

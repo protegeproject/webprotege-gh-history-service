@@ -11,6 +11,8 @@ import edu.stanford.protege.webprotege.change.RemoveAxiomChange;
 import edu.stanford.protege.webprotege.common.UserId;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,7 +64,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result = converter.convert(ontologyCommitChange);
@@ -93,7 +95,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result = converter.convert(ontologyCommitChange);
@@ -122,7 +124,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result = converter.convert(ontologyCommitChange);
@@ -150,7 +152,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result = converter.convert(ontologyCommitChange);
@@ -174,7 +176,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result1 = converter.convert(ontologyCommitChange);
@@ -205,7 +207,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result = converter.convert(ontologyCommitChange);
@@ -231,7 +233,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result = converter.convert(ontologyCommitChange);
@@ -258,7 +260,7 @@ class ChangeCommitToRevisionConverterTest {
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
         when(commitMetadata.commitDate()).thenReturn(commitDate);
 
-        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, REPOSITORY_URL);
+        var ontologyCommitChange = new OntologyCommitChange(axiomChanges, commitMetadata, Optional.empty());
 
         // Act
         var result = converter.convert(ontologyCommitChange);
