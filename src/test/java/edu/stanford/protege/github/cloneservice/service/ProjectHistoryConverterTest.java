@@ -5,8 +5,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import edu.stanford.protege.commitnavigator.model.CommitMetadata;
-import edu.stanford.protege.github.cloneservice.model.AxiomChange;
 import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
+import edu.stanford.protege.webprotege.change.AddAxiomChange;
+import edu.stanford.protege.webprotege.change.OntologyChange;
 import edu.stanford.protege.webprotege.revision.Revision;
 import edu.stanford.protege.webprotege.revision.RevisionNumber;
 import java.time.Instant;
@@ -204,7 +205,7 @@ class ProjectHistoryConverterTest {
         lenient().when(commitMetadata.commitMessage()).thenReturn("Test commit: " + username);
         lenient().when(commitMetadata.commitDate()).thenReturn(Instant.now());
 
-        var axiomChanges = List.of(AxiomChange.addAxiom(axiom1, ontologyId));
+        var axiomChanges = List.<OntologyChange>of(new AddAxiomChange(ontologyId, axiom1));
         return new OntologyCommitChange(axiomChanges, commitMetadata, "https://github.com/test/repo");
     }
 
@@ -215,7 +216,7 @@ class ProjectHistoryConverterTest {
         when(commitMetadata.commitMessage()).thenReturn("Real commit: " + username);
         when(commitMetadata.commitDate()).thenReturn(Instant.now());
 
-        var axiomChanges = List.of(AxiomChange.addAxiom(axiom1, ontologyId));
+        var axiomChanges = List.<OntologyChange>of(new AddAxiomChange(ontologyId, axiom1));
         return new OntologyCommitChange(axiomChanges, commitMetadata, "https://github.com/test/repo");
     }
 }

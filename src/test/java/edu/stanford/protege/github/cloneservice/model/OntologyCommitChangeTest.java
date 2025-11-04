@@ -5,6 +5,9 @@ import static org.mockito.Mockito.mock;
 
 import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 import java.util.List;
+
+import edu.stanford.protege.webprotege.change.AxiomChange;
+import edu.stanford.protege.webprotege.change.OntologyChange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,7 +16,7 @@ import org.junit.jupiter.api.Test;
 @DisplayName("OntologyCommitChange Tests")
 class OntologyCommitChangeTest {
 
-    private List<AxiomChange> mockAxiomChanges;
+    private List<OntologyChange> mockAxiomChanges;
     private CommitMetadata mockCommitMetadata;
     private String mockRepositoryUrl;
 
@@ -30,7 +33,7 @@ class OntologyCommitChangeTest {
         var ontologyCommitChange = new OntologyCommitChange(mockAxiomChanges, mockCommitMetadata, mockRepositoryUrl);
 
         assertEquals(mockAxiomChanges, ontologyCommitChange.axiomChanges());
-        assertEquals(mockCommitMetadata, ontologyCommitChange.commitMetadata());
+        assertEquals(mockCommitMetadata, ontologyCommitChange.baselineCommit());
     }
 
     @Test
@@ -44,12 +47,12 @@ class OntologyCommitChangeTest {
     }
 
     @Test
-    @DisplayName("Should throw NullPointerException when commitMetadata is null")
+    @DisplayName("Should throw NullPointerException when baselineCommit is null")
     void throwExceptionWhenCommitMetadataNull() {
         var exception = assertThrows(
                 NullPointerException.class, () -> new OntologyCommitChange(mockAxiomChanges, null, mockRepositoryUrl));
 
-        assertEquals("commitMetadata cannot be null", exception.getMessage());
+        assertEquals("baselineCommit cannot be null", exception.getMessage());
     }
 
     @Test
@@ -64,7 +67,7 @@ class OntologyCommitChangeTest {
     @Test
     @DisplayName("Should accept empty axiom changes list")
     void acceptEmptyAxiomChangesList() {
-        var emptyAxiomChanges = List.<AxiomChange>of();
+        var emptyAxiomChanges = List.<OntologyChange>of();
 
         var ontologyCommitChange = new OntologyCommitChange(emptyAxiomChanges, mockCommitMetadata, mockRepositoryUrl);
 

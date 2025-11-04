@@ -4,9 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
 
 import edu.stanford.protege.commitnavigator.model.CommitMetadata;
-import edu.stanford.protege.github.cloneservice.model.AxiomChange;
 import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
 import edu.stanford.protege.webprotege.change.AddAxiomChange;
+import edu.stanford.protege.webprotege.change.OntologyChange;
 import edu.stanford.protege.webprotege.change.RemoveAxiomChange;
 import edu.stanford.protege.webprotege.common.UserId;
 import java.time.Instant;
@@ -54,9 +54,9 @@ class ChangeCommitToRevisionConverterTest {
         var commitMessage = "Test commit message";
         var commitDate = Instant.parse("2023-01-01T12:00:00Z");
 
-        var addAxiomChange = AxiomChange.addAxiom(axiom1, ontologyId);
-        var removeAxiomChange = AxiomChange.removeAxiom(axiom2, ontologyId);
-        var axiomChanges = List.of(addAxiomChange, removeAxiomChange);
+        var addAxiomChange = new AddAxiomChange(ontologyId, axiom1);
+        var removeAxiomChange = new RemoveAxiomChange(ontologyId, axiom2);
+        var axiomChanges = List.<OntologyChange>of(addAxiomChange, removeAxiomChange);
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
@@ -86,8 +86,8 @@ class ChangeCommitToRevisionConverterTest {
         var commitMessage = "Add axiom";
         var commitDate = Instant.now();
 
-        var addAxiomChange = AxiomChange.addAxiom(axiom1, ontologyId);
-        var axiomChanges = List.of(addAxiomChange);
+        var addAxiomChange = new AddAxiomChange(ontologyId, axiom1);
+        var axiomChanges = List.<OntologyChange>of(addAxiomChange);
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
@@ -115,8 +115,8 @@ class ChangeCommitToRevisionConverterTest {
         var commitMessage = "Remove axiom";
         var commitDate = Instant.now();
 
-        var removeAxiomChange = AxiomChange.removeAxiom(axiom2, ontologyId);
-        var axiomChanges = List.of(removeAxiomChange);
+        var removeAxiomChange = new RemoveAxiomChange(ontologyId, axiom1);
+        var axiomChanges = List.<OntologyChange>of(removeAxiomChange);
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
@@ -144,7 +144,7 @@ class ChangeCommitToRevisionConverterTest {
         var commitMessage = "Empty commit";
         var commitDate = Instant.now();
 
-        var axiomChanges = List.<AxiomChange>of();
+        var axiomChanges = List.<OntologyChange>of();
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
@@ -168,7 +168,7 @@ class ChangeCommitToRevisionConverterTest {
         var username = "testuser";
         var commitMessage = "Test commit";
         var commitDate = Instant.now();
-        var axiomChanges = List.<AxiomChange>of();
+        var axiomChanges = List.<OntologyChange>of();
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
@@ -199,7 +199,7 @@ class ChangeCommitToRevisionConverterTest {
         var username = "testuser";
         var commitMessage = "Timestamp test";
         var commitDate = Instant.parse("2023-12-25T14:30:45.123Z");
-        var axiomChanges = List.<AxiomChange>of();
+        var axiomChanges = List.<OntologyChange>of();
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
@@ -222,10 +222,10 @@ class ChangeCommitToRevisionConverterTest {
         var commitMessage = "Mixed operations";
         var commitDate = Instant.now();
 
-        var addChange1 = AxiomChange.addAxiom(axiom1, ontologyId);
-        var removeChange = AxiomChange.removeAxiom(axiom2, ontologyId);
-        var addChange2 = AxiomChange.addAxiom(axiom1, ontologyId);
-        var axiomChanges = List.of(addChange1, removeChange, addChange2);
+        var addChange1 = new AddAxiomChange(ontologyId, axiom1);
+        var removeChange = new RemoveAxiomChange(ontologyId, axiom1);
+        var addChange2 = new AddAxiomChange(ontologyId, axiom1);
+        var axiomChanges = List.<OntologyChange>of(addChange1, removeChange, addChange2);
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);
@@ -252,7 +252,7 @@ class ChangeCommitToRevisionConverterTest {
         var username = "john.doe@example.com";
         var commitMessage = "Test commit";
         var commitDate = Instant.now();
-        var axiomChanges = List.<AxiomChange>of();
+        var axiomChanges = List.<OntologyChange>of();
 
         when(commitMetadata.committerUsername()).thenReturn(username);
         when(commitMetadata.commitMessage()).thenReturn(commitMessage);

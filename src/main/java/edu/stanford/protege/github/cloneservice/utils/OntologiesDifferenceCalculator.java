@@ -1,7 +1,7 @@
 package edu.stanford.protege.github.cloneservice.utils;
 
 import com.google.common.collect.ImmutableList;
-import edu.stanford.protege.github.cloneservice.model.AxiomChange;
+import edu.stanford.protege.webprotege.change.OntologyChange;
 import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyID;
@@ -31,7 +31,7 @@ class OntologiesDifferenceCalculator {
      * @return list of axiom changes between commits
      */
     @Nonnull
-    public List<AxiomChange> calculateAxiomChangesBetweenOntologies(
+    public List<OntologyChange> calculateAxiomChangesBetweenOntologies(
             @Nonnull List<OWLOntology> baselineCommitOntologies,
             @Nonnull List<OWLOntology> parentCommitOntologies) {
 
@@ -56,16 +56,16 @@ class OntologiesDifferenceCalculator {
 
         return pairs.stream()
                 .flatMap(pair -> differenceCalculator
-                        .calculateAxiomChanges(
+                        .calculateChanges(
                                 pair.baseline,
-                                pair.parent,
+                                pair.ancestor,
                                 // Prefer baseline’s real ID if not anonymous; else use ancestor’s; else synthesize
-                                effectiveOntologyId(pair.baseline, pair.parent))
+                                effectiveOntologyId(pair.baseline, pair.ancestor))
                         .stream())
                 .collect(ImmutableList.toImmutableList());
     }
 
-    private record OntologyPair(OWLOntology baseline, OWLOntology parent) {
+    private record OntologyPair(OWLOntology baseline, OWLOntology ancestor) {
 
     }
 

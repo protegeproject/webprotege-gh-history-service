@@ -9,9 +9,9 @@ import edu.stanford.protege.commitnavigator.model.ChangedFile;
 import edu.stanford.protege.commitnavigator.model.CommitMetadata;
 import edu.stanford.protege.commitnavigator.utils.CommitNavigator;
 import edu.stanford.protege.github.cloneservice.exception.OntologyComparisonException;
-import edu.stanford.protege.github.cloneservice.model.AxiomChange;
 import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
+import edu.stanford.protege.webprotege.change.OntologyChange;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,7 +84,7 @@ public class OntologyHistoryAnalyzer {
         }
     }
 
-    private static void logAxiomChanges(List<AxiomChange> axiomChanges) {
+    private static void logAxiomChanges(List<OntologyChange> axiomChanges) {
         logger.info("Total number of axiom changes: {}" , axiomChanges.size());
     }
 
@@ -140,7 +140,8 @@ public class OntologyHistoryAnalyzer {
     public List<OntologyCommitChange> getCommitHistory(
             @Nonnull RelativeFilePath ontologyFilePath,
             @Nonnull GitHubRepository gitHubRepository,
-            @Nonnull OntologyHistoryAnalyzerProgressMonitor progressMonitor)
+            @Nonnull OntologyHistoryAnalyzerProgressMonitor progressMonitor,
+            @Nonnull OntologyChangesHandler ontologyChangesHandler)
             throws OntologyComparisonException {
 
             Objects.requireNonNull(ontologyFilePath, "ontologyFilePath cannot be null" );
@@ -202,7 +203,7 @@ public class OntologyHistoryAnalyzer {
                     var plan = selectDiffPlan(commitNavigator, window, rootOntologyFile, filtered);
 
                     recordProcessingStarted(progressMonitor, baseline, filtered);
-                    List<AxiomChange> axiomChanges;
+                    List<OntologyChange> axiomChanges;
                     try {
                         try {
                             var exec = strategy.get(plan.kind());
@@ -222,7 +223,8 @@ public class OntologyHistoryAnalyzer {
                     }
 
                     logAxiomChanges(axiomChanges);
-                    allCommitChanges.add(new OntologyCommitChange(axiomChanges, baseline, repositoryUrl));
+
+                    allCommitChanges.add(new OntologyCommitChange(axiomChanges, baseline, window.getAncestorCommitHash()));
 
                     if(Duration.between(startTime, Instant.now()).compareTo(maxAnalysisDuration) > 0) {
                         logger.info("Time budget exceeded at {}" , baseline.commitHash());

@@ -86,7 +86,7 @@ class GroceryOntologyIntegrationTest {
 
         // Act
         logger.info("Getting commit history from repository");
-        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor());
+        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor(), new NullOntologyChangesHandler());
 
         logger.info("Converting {} commit changes to revisions", commitHistory.size());
         var revisions = projectHistoryConverter.convertProjectHistoryToRevisions(commitHistory);
@@ -127,7 +127,7 @@ class GroceryOntologyIntegrationTest {
 
             // Verify that the oldest commit (last in history) becomes the first revision
             var expectedFirstUserId =
-                    UserId.valueOf(lastCommitChange.commitMetadata().committerUsername());
+                    UserId.valueOf(lastCommitChange.baselineCommit().committerUsername());
             assertEquals(
                     expectedFirstUserId,
                     firstRevision.getUserId(),
@@ -136,7 +136,7 @@ class GroceryOntologyIntegrationTest {
             // Verify that the newest commit (first in history) becomes the last revision
             var newestCommitChange = commitHistory.get(0); // newest commit
             var expectedLastUserId =
-                    UserId.valueOf(newestCommitChange.commitMetadata().committerUsername());
+                    UserId.valueOf(newestCommitChange.baselineCommit().committerUsername());
             assertEquals(
                     expectedLastUserId,
                     lastRevision.getUserId(),
@@ -144,7 +144,7 @@ class GroceryOntologyIntegrationTest {
 
             // Verify timestamps match for the correct corresponding pairs
             var expectedFirstTimestamp =
-                    lastCommitChange.commitMetadata().commitDate().toEpochMilli();
+                    lastCommitChange.baselineCommit().commitDate().toEpochMilli();
             assertEquals(
                     expectedFirstTimestamp,
                     firstRevision.getTimestamp(),
@@ -173,7 +173,7 @@ class GroceryOntologyIntegrationTest {
         var gitHubRepository = createGitHubRepository(cloneDirectory);
 
         // Act
-        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor());
+        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor(), new NullOntologyChangesHandler());
 
         // Assert - Validate expected repository structure with updated expectations
         assertNotNull(commitHistory, "Commit history should not be null");
@@ -181,16 +181,16 @@ class GroceryOntologyIntegrationTest {
 
         // Validate all commits have expected metadata structure
         for (var commitChange : commitHistory) {
-            assertNotNull(commitChange.commitMetadata(), "Commit metadata should not be null");
-            assertNotNull(commitChange.commitMetadata().committerUsername(), "Committer username should not be null");
-            assertNotNull(commitChange.commitMetadata().commitMessage(), "Commit message should not be null");
-            assertNotNull(commitChange.commitMetadata().commitDate(), "Commit date should not be null");
+            assertNotNull(commitChange.baselineCommit(), "Commit metadata should not be null");
+            assertNotNull(commitChange.baselineCommit().committerUsername(), "Committer username should not be null");
+            assertNotNull(commitChange.baselineCommit().commitMessage(), "Commit message should not be null");
+            assertNotNull(commitChange.baselineCommit().commitDate(), "Commit date should not be null");
             assertNotNull(commitChange.axiomChanges(), "Axiom changes should not be null");
 
             assertFalse(
-                    commitChange.commitMetadata().committerUsername().isEmpty(),
+                    commitChange.baselineCommit().committerUsername().isEmpty(),
                     "Committer username should not be empty");
-            assertFalse(commitChange.commitMetadata().commitMessage().isEmpty(), "Commit message should not be empty");
+            assertFalse(commitChange.baselineCommit().commitMessage().isEmpty(), "Commit message should not be empty");
         }
 
         logger.info("Validated {} commits with proper metadata structure", commitHistory.size());
@@ -205,7 +205,7 @@ class GroceryOntologyIntegrationTest {
         var gitHubRepository = createGitHubRepository(cloneDirectory);
 
         // Act
-        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor());
+        var commitHistory = historyAnalyzer.getCommitHistory(ONTOLOGY_FILE_PATH, gitHubRepository, new NullProgressMonitor(), new NullOntologyChangesHandler());
         var revisions = projectHistoryConverter.convertProjectHistoryToRevisions(commitHistory);
 
         // Assert - Validate ontology change conversion with updated expectations

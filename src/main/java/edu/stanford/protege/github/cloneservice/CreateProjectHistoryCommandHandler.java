@@ -10,6 +10,7 @@ import edu.stanford.protege.github.cloneservice.message.*;
 import edu.stanford.protege.github.cloneservice.model.OntologyCommitChange;
 import edu.stanford.protege.github.cloneservice.model.RelativeFilePath;
 import edu.stanford.protege.github.cloneservice.service.ProjectHistoryStorer;
+import edu.stanford.protege.github.cloneservice.utils.OntologyChangesCollectingHandler;
 import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzer;
 import edu.stanford.protege.github.cloneservice.utils.OntologyHistoryAnalyzerProgressMonitor;
 import edu.stanford.protege.webprotege.common.*;
@@ -176,9 +177,19 @@ public class CreateProjectHistoryCommandHandler
                                 operationId,
                                 rootOntologyPath);
                         return ontologyHistoryAnalyzer.getCommitHistory(rootOntologyPath, repository, new OntologyHistoryAnalyzerProgressMonitor() {
-
                             @Override
                             public void processingHistoryStarted(String repositoryUrl, int numberOfCommits) {
+
+                            }
+
+                            @Override
+                            public void processingCommitStarted(CommitMetadata commitMetadata, List<String> changedFilePaths) {
+                                eventDispatcher.dispatchEvent(new CommitProcessingStartedEvent(EventId.generate(), operationId, projectId, commitMetadata.commitHash()));
+
+                            }
+
+                            @Override
+                            public void processingCommitFinished(CommitMetadata commitMetadata) {
 
                             }
 
@@ -186,17 +197,7 @@ public class CreateProjectHistoryCommandHandler
                             public void processingHistoryFinished() {
 
                             }
-
-                            @Override
-                            public void processingCommitStarted(CommitMetadata commitMetadata, List<String> changedFilePaths) {
-                                eventDispatcher.dispatchEvent(new CommitProcessingStartedEvent(EventId.generate(), operationId, projectId, commitMetadata.commitHash()));
-                            }
-
-                            @Override
-                            public void processingCommitFinished(CommitMetadata commitMetadata) {
-
-                            }
-                        });
+                        }, new OntologyChangesCollectingHandler());
                     } catch (OntologyComparisonException e) {
                         logger.error(
                                 "{} {} Failed to extract ontology changes from file {}",

@@ -3,8 +3,10 @@ package edu.stanford.protege.github.cloneservice.utils;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import edu.stanford.protege.github.cloneservice.model.AxiomChange;
 import java.util.Set;
+
+import edu.stanford.protege.webprotege.change.AddAxiomChange;
+import edu.stanford.protege.webprotege.change.RemoveAxiomChange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,7 +52,7 @@ class OntologyDifferenceCalculatorTest {
     void throwExceptionWhenCurrentOntologyNull() {
         var exception = assertThrows(
                 NullPointerException.class,
-                () -> differenceCalculator.calculateAxiomChanges(null, previousOntology, ontologyId));
+                () -> differenceCalculator.calculateChanges(null, previousOntology, ontologyId));
 
         assertEquals("childCommitOntology cannot be null", exception.getMessage());
     }
@@ -60,7 +62,7 @@ class OntologyDifferenceCalculatorTest {
     void throwExceptionWhenPreviousOntologyNull() {
         var exception = assertThrows(
                 NullPointerException.class,
-                () -> differenceCalculator.calculateAxiomChanges(currentOntology, null, ontologyId));
+                () -> differenceCalculator.calculateChanges(currentOntology, null, ontologyId));
 
         assertEquals("parentCommitOntology cannot be null", exception.getMessage());
     }
@@ -72,7 +74,7 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(axioms);
         when(previousOntology.getAxioms()).thenReturn(axioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -87,15 +89,14 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(currentAxioms);
         when(previousOntology.getAxioms()).thenReturn(previousAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertEquals(1, result.size());
 
         var axiomChange = result.get(0);
-        assertEquals(AxiomChange.OperationType.ADD, axiomChange.operationType());
-        assertEquals(axiom3, axiomChange.axiom());
-        assertEquals(ontologyId, axiomChange.ontologyID());
+        assertEquals(axiom3, axiomChange.getAxiomOrThrow());
+        assertEquals(ontologyId, axiomChange.ontologyId());
     }
 
     @Test
@@ -107,15 +108,15 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(currentAxioms);
         when(previousOntology.getAxioms()).thenReturn(previousAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertEquals(1, result.size());
 
         var axiomChange = result.get(0);
-        assertEquals(AxiomChange.OperationType.REMOVE, axiomChange.operationType());
-        assertEquals(axiom3, axiomChange.axiom());
-        assertEquals(ontologyId, axiomChange.ontologyID());
+        assertInstanceOf(RemoveAxiomChange.class, axiomChange);
+        assertEquals(axiom3, axiomChange.getAxiomOrThrow());
+        assertEquals(ontologyId, axiomChange.ontologyId());
     }
 
     @Test
@@ -127,23 +128,23 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(currentAxioms);
         when(previousOntology.getAxioms()).thenReturn(previousAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertEquals(2, result.size());
 
         var addedChange = result.stream()
-                .filter(change -> change.operationType() == AxiomChange.OperationType.ADD)
+                .filter(change -> change instanceof AddAxiomChange)
                 .findFirst();
         var removedChange = result.stream()
-                .filter(change -> change.operationType() == AxiomChange.OperationType.REMOVE)
+                .filter(change -> change instanceof RemoveAxiomChange)
                 .findFirst();
 
         assertTrue(addedChange.isPresent());
-        assertEquals(axiom3, addedChange.get().axiom());
+        assertEquals(axiom3, addedChange.get().getAxiomOrThrow());
 
         assertTrue(removedChange.isPresent());
-        assertEquals(axiom2, removedChange.get().axiom());
+        assertEquals(axiom2, removedChange.get().getAxiomOrThrow());
     }
 
     @Test
@@ -155,11 +156,11 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(currentAxioms);
         when(previousOntology.getAxioms()).thenReturn(previousAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertEquals(2, result.size());
-        assertTrue(result.stream().allMatch(change -> change.operationType() == AxiomChange.OperationType.REMOVE));
+        assertTrue(result.stream().allMatch(change -> change instanceof RemoveAxiomChange));
     }
 
     @Test
@@ -171,11 +172,11 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(currentAxioms);
         when(previousOntology.getAxioms()).thenReturn(previousAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertEquals(2, result.size());
-        assertTrue(result.stream().allMatch(change -> change.operationType() == AxiomChange.OperationType.ADD));
+        assertTrue(result.stream().allMatch(change -> change instanceof AddAxiomChange));
     }
 
     @Test
@@ -186,7 +187,7 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(emptyAxioms);
         when(previousOntology.getAxioms()).thenReturn(emptyAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertTrue(result.isEmpty());
@@ -201,11 +202,11 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(currentAxioms);
         when(previousOntology.getAxioms()).thenReturn(previousAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
         assertEquals(2, result.size());
-        assertTrue(result.stream().allMatch(change -> change.ontologyID().equals(ontologyId)));
+        assertTrue(result.stream().allMatch(change -> change.ontologyId().equals(ontologyId)));
     }
 
     @Test
@@ -217,9 +218,9 @@ class OntologyDifferenceCalculatorTest {
         when(currentOntology.getAxioms()).thenReturn(currentAxioms);
         when(previousOntology.getAxioms()).thenReturn(previousAxioms);
 
-        var result = differenceCalculator.calculateAxiomChanges(currentOntology, previousOntology, ontologyId);
+        var result = differenceCalculator.calculateChanges(currentOntology, previousOntology, ontologyId);
 
         assertNotNull(result);
-        assertThrows(UnsupportedOperationException.class, () -> result.add(AxiomChange.addAxiom(axiom2, ontologyId)));
+        assertThrows(UnsupportedOperationException.class, () -> result.add(new AddAxiomChange(ontologyId, axiom2)));
     }
 }

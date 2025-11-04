@@ -1,6 +1,6 @@
 package edu.stanford.protege.github.cloneservice.utils;
 
-import edu.stanford.protege.github.cloneservice.model.AxiomChange;
+import edu.stanford.protege.webprotege.change.OntologyChange;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,7 +20,7 @@ class FallbackStrategy {
         this.differenceCalaculator = differenceCalaculator;
     }
 
-    public List<AxiomChange> fallback(
+    public List<OntologyChange> fallback(
             Path rootOntologyPath,
             LoadedOntologyCache cache,
             CommitWindow commitWindow) {

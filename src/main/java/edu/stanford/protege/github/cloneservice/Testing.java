@@ -83,6 +83,6 @@ public class Testing {
                 endTime = System.currentTimeMillis();
                 logger.info("Processed commit #{} in {}ms [{}]", counter, (endTime - startTime), commitMetadata.commitHash());
             }
-        });
+        }, new OntologyChangesCollectingHandler());
     }
 }
